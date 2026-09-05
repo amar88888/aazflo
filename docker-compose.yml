@@ -1,0 +1,39 @@
+# Production di VPS: PostgreSQL + app.
+# NOTA: sebelum guna, tukar provider dalam prisma/schema.prisma ke "postgresql"
+# dan jana semula migrations (lihat README.md).
+services:
+  db:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: bizops
+      POSTGRES_USER: bizops
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?set DB_PASSWORD dalam .env}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U bizops"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  app:
+    build: .
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      DATABASE_URL: postgresql://bizops:${DB_PASSWORD}@db:5432/bizops
+      NEXTAUTH_SECRET: ${NEXTAUTH_SECRET:?set NEXTAUTH_SECRET dalam .env}
+      NEXTAUTH_URL: ${NEXTAUTH_URL:-http://localhost:3000}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:?set ADMIN_EMAIL dalam .env}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:?set ADMIN_PASSWORD dalam .env}
+      WOOCOMMERCE_URL: ${WOOCOMMERCE_URL:-}
+      WOOCOMMERCE_CONSUMER_KEY: ${WOOCOMMERCE_CONSUMER_KEY:-}
+      WOOCOMMERCE_CONSUMER_SECRET: ${WOOCOMMERCE_CONSUMER_SECRET:-}
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  pgdata:

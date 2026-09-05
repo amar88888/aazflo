@@ -1,0 +1,181 @@
+// BizOps — schema portable (SQLite dev / PostgreSQL production).
+// Sengaja tak guna enum supaya boleh tukar provider tanpa ubah schema —
+// nilai tetap didefinisikan dalam src/lib/constants.ts.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Order {
+  id              String      @id @default(cuid())
+  platform        String // tiktok | shopee | woocommerce
+  platformOrderId String
+  status          String // pending | printed | shipped | completed | cancelled
+  buyerName       String?
+  total           Float
+  platformFee     Float       @default(0)
+  shippingFee     Float       @default(0)
+  orderedAt       DateTime
+  awbPrintedAt    DateTime?
+  awbBatchId      String?
+  awbBatch        AwbBatch?   @relation(fields: [awbBatchId], references: [id])
+  items           OrderItem[]
+  source          String      @default("csv") // csv | api
+
+  // Penghantaran & tracking
+  courier         String? // J&T Express | SPX Express | Pos Laju | Ninja Van | ...
+  trackingNo      String?
+  deliveryStatus  String      @default("pending") // pending | in_transit | out_for_delivery | delivered | failed | returned
+  shippedAt       DateTime?
+  deliveredAt     DateTime?
+
+  // Return / refund
+  returnStatus    String      @default("none") // none | requested | approved | returned | refunded
+  returnReason    String?
+  refundAmount    Float       @default(0)
+
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  @@unique([platform, platformOrderId])
+  @@index([platform, orderedAt])
+  @@index([status])
+  @@index([deliveryStatus])
+  @@index([returnStatus])
+}
+
+model OrderItem {
+  id        String   @id @default(cuid())
+  orderId   String
+  order     Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  sku       String?
+  name      String
+  quantity  Int
+  unitPrice Float
+  productId String?
+  product   Product? @relation(fields: [productId], references: [id])
+
+  @@index([orderId])
+  @@index([sku])
+}
+
+model Product {
+  id          String      @id @default(cuid())
+  name        String
+  sku         String      @unique
+  cogsPerUnit Float       @default(0)
+  // Harga jual per platform (boleh berbeza antara platform)
+  priceTiktok Float?
+  priceShopee Float?
+  priceWoo    Float?
+  tiktokSku   String?
+  shopeeSku   String?
+  wooSku      String?
+  items       OrderItem[]
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+}
+
+model AwbBatch {
+  id         String   @id @default(cuid())
+  platform   String
+  orderCount Int
+  printedAt  DateTime @default(now())
+  orders     Order[]
+}
+
+model Recording {
+  id         String     @id @default(cuid())
+  title      String
+  fileRef    String? // path/nama fail video di PC user
+  durationH  Float      @default(3)
+  notes      String?
+  slots      LiveSlot[]
+  createdAt  DateTime   @default(now())
+}
+
+model LiveSlot {
+  id          String     @id @default(cuid())
+  startAt     DateTime
+  endAt       DateTime
+  recordingId String?
+  recording   Recording? @relation(fields: [recordingId], references: [id])
+  salesTotal  Float?
+  peakViewers Int?
+  notes       String?
+  createdAt   DateTime   @default(now())
+
+  @@index([startAt])
+}
+
+model Expense {
+  id        String   @id @default(cuid())
+  type      String // ads | fixed | other
+  label     String
+  amount    Float
+  platform  String? // tiktok | shopee | woocommerce | null (umum)
+  date      DateTime
+  recurring Boolean  @default(false) // kos tetap bulanan
+  createdAt DateTime @default(now())
+
+  @@index([date])
+  @@index([type])
+}
+
+model ApiCredential {
+  id        String   @id @default(cuid())
+  platform  String   @unique // shopee | tiktok | woocommerce | telegram
+  data      String // JSON string (keys/tokens)
+  updatedAt DateTime @updatedAt
+}
+
+// Konfigurasi umum (key-value) — cth: fee_tiktok, fee_shopee, fee_woo (peratus)
+model Setting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
+}
+
+// ── Operasi Office ──
+
+model Attendance {
+  id         String   @id @default(cuid())
+  date       DateTime
+  partTimers Int      @default(0)
+  names      String?
+  wageTotal  Float    @default(0)
+  notes      String?
+  createdAt  DateTime @default(now())
+
+  @@index([date])
+}
+
+model Supply {
+  id           String   @id @default(cuid())
+  name         String // Botol | Kotak | Bubble Wrap | Selotape | ...
+  unit         String   @default("unit")
+  currentStock Int      @default(0)
+  reorderLevel Int      @default(0)
+  notes        String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model CashTxn {
+  id          String   @id @default(cuid())
+  date        DateTime
+  type        String // topup | expense | claim
+  category    String // lalamove | supplies | wage | other
+  amount      Float
+  description String?
+  receiptPath String? // nama fail PDF dalam data/receipts
+  createdAt   DateTime @default(now())
+
+  @@index([date])
+  @@index([type])
+}

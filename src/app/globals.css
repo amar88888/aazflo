@@ -1,0 +1,93 @@
+@import "tailwindcss";
+
+:root {
+  --background: #f6f7fb;
+  --foreground: #0f172a;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+}
+
+/* ── Brand: primary action button (violet → indigo gradient) ── */
+.btn-primary {
+  background-image: linear-gradient(135deg, #7c3aed 0%, #4f46e5 100%);
+  color: #fff;
+  box-shadow: 0 4px 14px -4px rgba(99, 102, 241, 0.5);
+  transition: filter 0.15s ease, box-shadow 0.15s ease, transform 0.05s ease;
+}
+.btn-primary:hover:not(:disabled) {
+  filter: brightness(1.08);
+  box-shadow: 0 6px 20px -4px rgba(99, 102, 241, 0.6);
+}
+.btn-primary:active:not(:disabled) {
+  transform: translateY(1px);
+}
+.btn-primary:disabled {
+  opacity: 0.55;
+  box-shadow: none;
+}
+
+/* ── Dark sidebar backdrop ── */
+.sidebar-grad {
+  background: radial-gradient(130% 90% at 0% 0%, #4c1d95 0%, #312e81 48%, #1e1b4b 100%);
+}
+
+/* ── Gradient wordmark ── */
+.brand-text {
+  background: linear-gradient(135deg, #8b5cf6, #6366f1);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* ── App content background: mesh glow (violet / cyan / indigo) ── */
+.app-bg {
+  background-color: #f4f4fb;
+  background-image:
+    radial-gradient(60% 55% at 100% 0%, rgba(139, 92, 246, 0.16), transparent 70%),
+    radial-gradient(55% 45% at 0% 100%, rgba(34, 211, 238, 0.14), transparent 70%),
+    radial-gradient(45% 40% at 45% 25%, rgba(99, 102, 241, 0.10), transparent 70%),
+    radial-gradient(40% 40% at 80% 90%, rgba(236, 72, 153, 0.08), transparent 70%);
+  background-attachment: fixed;
+}
+
+/* ── Gradient heading text ── */
+.heading-gradient {
+  background: linear-gradient(120deg, #4c1d95 0%, #4f46e5 55%, #0891b2 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* ── Secondary (outline) button ── */
+.btn-secondary {
+  background: #fff;
+  color: #4338ca;
+  border: 1px solid #e0e7ff;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+.btn-secondary:hover:not(:disabled) {
+  background: #eef2ff;
+  border-color: #c7d2fe;
+}
+
+/* ── Premium thin scrollbar ── */
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+*::-webkit-scrollbar-thumb {
+  background: rgba(99, 102, 241, 0.28);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background: rgba(99, 102, 241, 0.45);
+  background-clip: padding-box;
+}
