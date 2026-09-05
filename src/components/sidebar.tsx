@@ -11,6 +11,7 @@ import {
   Radio,
   Calculator,
   Tag,
+  Sparkles,
   Settings,
   LogOut,
 } from "lucide-react";
@@ -22,6 +23,7 @@ const NAV = [
   { href: "/returns", label: "Pulangan & Batal", icon: RotateCcw, staff: true },
   { href: "/ops", label: "Operasi Office", icon: ClipboardList, staff: true },
   { href: "/live", label: "Live Sessions", icon: Radio, staff: false },
+  { href: "/content", label: "Content AI", icon: Sparkles, staff: false },
   { href: "/pnl", label: "Profit & Loss", icon: Calculator, staff: false },
   { href: "/products", label: "Produk & COGS", icon: Tag, staff: false },
   { href: "/settings", label: "Settings", icon: Settings, staff: false },
