@@ -1,27 +1,30 @@
 // Integrasi Higgsfield — jana video AI dari gambar produk (image-to-video).
-// Kredential: HIGGSFIELD_CREDENTIALS = "KEY_ID:KEY_SECRET" (dari cloud.higgsfield.ai).
+// Kredential: "KEY_ID:KEY_SECRET" (dari cloud.higgsfield.ai).
+// Sumber: DB (ApiCredential 'higgsfield', encrypted) ATAU env HIGGSFIELD_CREDENTIALS.
 import { higgsfield, config } from "@higgsfield/client/v2";
+import { loadCredentials } from "@/lib/credentials";
 
 export type HiggsfieldModel = "dop-lite" | "dop-turbo" | "dop-standard";
+export type HiggsfieldCreds = { credentials: string };
 
-export function getHiggsfieldCreds(): string | null {
-  const c = process.env.HIGGSFIELD_CREDENTIALS?.trim();
+export async function getHiggsfieldCreds(): Promise<string | null> {
+  const fromDb = await loadCredentials<HiggsfieldCreds>("higgsfield");
+  const c = (fromDb?.credentials || process.env.HIGGSFIELD_CREDENTIALS || "").trim();
   return c && c.includes(":") ? c : null;
 }
 
-export function isHiggsfieldReady(): boolean {
-  return getHiggsfieldCreds() !== null;
+export async function isHiggsfieldReady(): Promise<boolean> {
+  return (await getHiggsfieldCreds()) !== null;
 }
 
 // Jana video dari gambar + prompt. Blok sampai siap (withPolling).
-// Pulang URL video bila selesai; throw kalau gagal.
 export async function generateProductVideo(opts: {
   prompt: string;
   imageUrl: string;
   model?: HiggsfieldModel;
 }): Promise<string> {
-  const creds = getHiggsfieldCreds();
-  if (!creds) throw new Error("Higgsfield belum di-setup. Isi HIGGSFIELD_CREDENTIALS.");
+  const creds = await getHiggsfieldCreds();
+  if (!creds) throw new Error("Higgsfield belum di-setup.");
 
   config({ credentials: creds });
 

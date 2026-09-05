@@ -5,7 +5,8 @@ import { getPlatformFees } from "@/lib/settings";
 import { PageHeader, Card, Badge } from "@/components/ui";
 import { SyncWooButton } from "./sync-button";
 import { TelegramSettings } from "./telegram-settings";
-import { connectTikTokAction, connectShopeeAction, saveFeesAction } from "./actions";
+import { getHiggsfieldCreds } from "@/lib/integrations/higgsfield";
+import { connectTikTokAction, connectShopeeAction, saveFeesAction, saveHiggsfieldAction } from "./actions";
 
 export const dynamic = "force-dynamic";
 
@@ -18,6 +19,7 @@ export default async function SettingsPage() {
   const telegram = await getTelegramConfig();
   const telegramReady = !!(telegram.botToken && telegram.chatId);
   const fees = await getPlatformFees();
+  const higgsfieldReady = !!(await getHiggsfieldCreds());
 
   return (
     <div className="max-w-2xl">
@@ -167,6 +169,35 @@ export default async function SettingsPage() {
             Report auto dihantar setiap hari <b>sebelum 11:59 malam</b>. Untuk jadual: set cron di VPS (11:30 malam) →{" "}
             <code className="rounded bg-slate-100 px-1">30 23 * * * curl -s &quot;https://app.aazflo.com/api/cron/daily-report?secret=CRON_SECRET&quot;</code>
           </p>
+        </Card>
+
+        <Card>
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="text-sm font-semibold text-slate-700">Content AI (Higgsfield)</h2>
+            <Badge color={higgsfieldReady ? "green" : "orange"}>{higgsfieldReady ? "Connected" : "Belum setup"}</Badge>
+          </div>
+          <p className="mb-3 text-sm text-slate-600">
+            API key untuk jana video AI produk. Dapatkan di{" "}
+            <a href="https://cloud.higgsfield.ai" target="_blank" rel="noreferrer" className="text-blue-600 underline">
+              cloud.higgsfield.ai
+            </a>{" "}
+            → API Keys. Format: <code className="rounded bg-slate-100 px-1 text-xs">KEY_ID:KEY_SECRET</code>
+          </p>
+          <form action={saveHiggsfieldAction} className="flex flex-wrap items-end gap-2">
+            <div className="min-w-[260px] flex-1">
+              <label className="mb-1 block text-xs font-medium text-slate-600">Higgsfield Credentials</label>
+              <input
+                name="credentials"
+                type="password"
+                placeholder={higgsfieldReady ? "•••••••• (dah disimpan — isi untuk tukar)" : "KEY_ID:KEY_SECRET"}
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+              />
+            </div>
+            <button className="btn-primary rounded-lg px-4 py-2 text-sm font-medium">Simpan</button>
+          </form>
+          {higgsfieldReady && (
+            <p className="mt-2 text-xs text-emerald-600">✓ Key tersimpan. Buka menu <b>Content AI</b> untuk jana video.</p>
+          )}
         </Card>
       </div>
     </div>

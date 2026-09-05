@@ -7,7 +7,7 @@ import { Sparkles, KeyRound } from "lucide-react";
 export const dynamic = "force-dynamic";
 
 export default async function ContentPage() {
-  const ready = isHiggsfieldReady();
+  const ready = await isHiggsfieldReady();
   const products = await db.product.findMany({ select: { name: true }, orderBy: { name: "asc" } });
 
   return (

@@ -41,6 +41,16 @@ export async function sendTestReportAction() {
   return sendTelegram(report);
 }
 
+// ── Higgsfield (Content AI) — simpan API key encrypted dalam DB ──
+export async function saveHiggsfieldAction(formData: FormData) {
+  const credentials = String(formData.get("credentials") ?? "").trim();
+  if (credentials && credentials.includes(":")) {
+    await saveCredentials("higgsfield", { credentials });
+  }
+  revalidatePath("/settings");
+  revalidatePath("/content");
+}
+
 // ── Fee platform (%) — dipakai dalam P&L bila order tiada fee sebenar ──
 export async function saveFeesAction(formData: FormData) {
   const { setSetting } = await import("@/lib/settings");
