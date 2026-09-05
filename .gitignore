@@ -12,3 +12,5 @@ data/receipts/
 
 *.tsbuildinfo
 tmp-prev.js
+
+.env.production
