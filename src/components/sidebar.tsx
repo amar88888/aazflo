@@ -6,6 +6,7 @@ import { signOut } from "next-auth/react";
 import {
   LayoutDashboard,
   Package,
+  RotateCcw,
   ClipboardList,
   Radio,
   Calculator,
@@ -18,6 +19,7 @@ import { Logo } from "@/components/logo";
 const NAV = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard, staff: false },
   { href: "/orders", label: "Orders & AWB", icon: Package, staff: true },
+  { href: "/returns", label: "Pulangan & Batal", icon: RotateCcw, staff: true },
   { href: "/ops", label: "Operasi Office", icon: ClipboardList, staff: true },
   { href: "/live", label: "Live Sessions", icon: Radio, staff: false },
   { href: "/pnl", label: "Profit & Loss", icon: Calculator, staff: false },

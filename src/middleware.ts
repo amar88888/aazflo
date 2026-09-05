@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 
 // Staff hanya boleh akses Orders & AWB (print AWB, tracking, return).
 // Semua route lain (dashboard, P&L, produk, live, settings) dihadkan ke admin.
-const STAFF_ALLOWED = ["/orders", "/ops", "/api/receipts", "/api/awb"];
+const STAFF_ALLOWED = ["/orders", "/returns", "/ops", "/api/receipts", "/api/awb"];
 
 export default withAuth(
   function middleware(req) {
