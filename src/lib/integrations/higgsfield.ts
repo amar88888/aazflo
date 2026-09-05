@@ -28,18 +28,32 @@ export async function generateProductVideo(opts: {
 
   config({ credentials: creds });
 
+  // API terkini nak input dibungkus dalam `params`. SDK 0.2.1 spread {...input}
+  // terus, jadi kita letak params di aras input supaya body = { params: {...} }.
   const res = await higgsfield.subscribe("/v1/image2video/dop", {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     input: {
-      model: opts.model ?? "dop-turbo",
-      prompt: opts.prompt,
-      input_images: [{ type: "image_url", image_url: opts.imageUrl }],
-      enhance_prompt: true,
-    },
+      params: {
+        model: opts.model ?? "dop-turbo",
+        prompt: opts.prompt,
+        input_images: [{ type: "image_url", image_url: opts.imageUrl }],
+        enhance_prompt: true,
+      },
+    } as unknown as Record<string, unknown>,
     withPolling: true,
   });
 
-  if (res.status !== "completed" || !res.video?.url) {
-    throw new Error(`Penjanaan video gagal (status: ${res.status}).`);
+  // Cari URL video dalam beberapa kemungkinan bentuk respons.
+  const r = res as unknown as {
+    status?: string;
+    video?: { url?: string };
+    results?: { raw?: { url?: string } };
+    jobs?: Array<{ results?: { raw?: { url?: string } } }>;
+  };
+  const url =
+    r.video?.url || r.results?.raw?.url || r.jobs?.[0]?.results?.raw?.url || null;
+  if (!url) {
+    throw new Error(`Penjanaan video gagal (status: ${r.status ?? "?"}).`);
   }
-  return res.video.url;
+  return url;
 }
