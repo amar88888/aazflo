@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "postbuild": "prisma migrate deploy && node prisma/seed-prod.mjs",
     "start": "next start",
     "db:migrate": "prisma migrate dev",
     "db:push": "prisma db push",
@@ -14,6 +15,7 @@
   },
   "dependencies": {
     "@prisma/client": "^6.5.0",
+    "prisma": "^6.5.0",
     "date-fns": "^4.1.0",
     "lucide-react": "^0.469.0",
     "next": "^15.5.4",
@@ -32,7 +34,6 @@
     "@types/papaparse": "^5.3.15",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
-    "prisma": "^6.5.0",
     "tailwindcss": "^4.1.0",
     "tsx": "^4.19.2",
     "typescript": "^5.7.2"
