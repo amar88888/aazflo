@@ -33,6 +33,8 @@ model Order {
   deliveryStatus  String      @default("pending") // pending | in_transit | out_for_delivery | delivered | failed | returned
   shippedAt       DateTime?
   deliveredAt     DateTime?
+  trackingEvents  String? // JSON: [{stage, at}] — perjalanan parcel (dari courier)
+  lastTrackingAt  DateTime? // masa event tracking terkini
 
   // Return / refund
   returnStatus    String      @default("none") // none | requested | approved | returned | refunded

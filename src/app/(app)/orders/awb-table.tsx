@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Badge } from "@/components/ui";
 import { PlatformBadge } from "@/components/platform-icon";
@@ -19,7 +19,9 @@ import {
   type ReturnStatus,
 } from "@/lib/constants";
 import { markPrintedAction } from "./actions";
-import { Printer, Truck, FileText } from "lucide-react";
+import { Printer, Truck, MapPin, ChevronDown, ChevronRight } from "lucide-react";
+
+export type TrackingEvent = { stage: string; at: string };
 
 export type AwbOrder = {
   id: string;
@@ -34,6 +36,8 @@ export type AwbOrder = {
   courier: string | null;
   trackingNo: string | null;
   orderedAt: string;
+  deliveredAt: string | null;
+  trackingEvents: TrackingEvent[];
 };
 
 const STATUS_COLORS: Record<string, string> = {
@@ -55,7 +59,17 @@ export function AwbOrdersTable({
 }) {
   const router = useRouter();
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [busy, setBusy] = useState(false);
+
+  function toggleExpand(id: string) {
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
   const [msg, setMsg] = useState<string | null>(null);
   const headerRef = useRef<HTMLInputElement>(null);
 
@@ -238,8 +252,12 @@ export function AwbOrdersTable({
             </tr>
           </thead>
           <tbody>
-            {orders.map((o) => (
-              <tr key={o.id} className="border-b border-slate-100 last:border-0 hover:bg-slate-50">
+            {orders.map((o) => {
+              const hasJourney = o.trackingEvents.length > 0;
+              const isOpen = expanded.has(o.id);
+              return (
+              <Fragment key={o.id}>
+              <tr className="border-b border-slate-100 last:border-0 hover:bg-slate-50">
                 <td className="px-4 py-3">
                   <input
                     type="checkbox"
@@ -279,6 +297,16 @@ export function AwbOrdersTable({
                         ↩ {RETURN_STATUS_LABELS[o.returnStatus as ReturnStatus] ?? o.returnStatus}
                       </Badge>
                     )}
+                    {hasJourney && (
+                      <button
+                        type="button"
+                        onClick={() => toggleExpand(o.id)}
+                        className="mt-0.5 flex items-center gap-1 text-xs font-medium text-violet-600 hover:underline"
+                      >
+                        {isOpen ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
+                        Journey ({o.trackingEvents.length})
+                      </button>
+                    )}
                   </div>
                 </td>
                 <td className="px-4 py-3 text-slate-500">{formatDateTime(o.orderedAt)}</td>
@@ -295,10 +323,60 @@ export function AwbOrdersTable({
                   )}
                 </td>
               </tr>
-            ))}
+              {isOpen && hasJourney && (
+                <tr className="bg-slate-50/80">
+                  <td colSpan={isStaff ? 8 : 9} className="px-4 pb-4 pt-1">
+                    <Journey events={o.trackingEvents} trackingNo={o.trackingNo} courier={o.courier} />
+                  </td>
+                </tr>
+              )}
+              </Fragment>
+              );
+            })}
           </tbody>
         </table>
       </div>
+    </div>
+  );
+}
+
+// Timeline perjalanan parcel — event terkini di atas.
+function Journey({
+  events,
+  trackingNo,
+  courier,
+}: {
+  events: TrackingEvent[];
+  trackingNo: string | null;
+  courier: string | null;
+}) {
+  const ordered = [...events].reverse(); // terkini dulu
+  return (
+    <div className="rounded-xl border border-slate-200 bg-white p-4">
+      <div className="mb-3 flex items-center gap-2 text-xs">
+        <MapPin size={14} className="text-violet-500" />
+        <span className="font-semibold text-slate-700">Perjalanan parcel</span>
+        {courier && <span className="text-slate-500">· {courier}</span>}
+        {trackingNo && <span className="font-mono text-slate-400">{trackingNo}</span>}
+      </div>
+      <ol className="relative ml-1 border-l-2 border-slate-200">
+        {ordered.map((e, i) => {
+          const latest = i === 0;
+          return (
+            <li key={i} className="mb-3 ml-4 last:mb-0">
+              <span
+                className={`absolute -left-[7px] mt-1 h-3 w-3 rounded-full border-2 border-white ${
+                  latest ? "bg-emerald-500" : "bg-slate-300"
+                }`}
+              />
+              <p className={`text-sm font-medium capitalize ${latest ? "text-emerald-700" : "text-slate-700"}`}>
+                {e.stage}
+              </p>
+              <p className="text-xs text-slate-400">{formatDateTime(e.at)}</p>
+            </li>
+          );
+        })}
+      </ol>
     </div>
   );
 }

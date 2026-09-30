@@ -43,20 +43,32 @@ export default async function OrdersPage({
   const pendingByPlatform: Record<string, number> = {};
   for (const pc of pendingCounts) pendingByPlatform[pc.platform] = pc._count;
 
-  const awbOrders: AwbOrder[] = orders.map((o) => ({
-    id: o.id,
-    platform: o.platform,
-    platformOrderId: o.platformOrderId,
-    buyerName: o.buyerName,
-    items: o.items.map((it) => `${it.name} ×${it.quantity}`).join(", "),
-    total: o.total,
-    status: o.status,
-    deliveryStatus: o.deliveryStatus,
-    returnStatus: o.returnStatus,
-    courier: o.courier,
-    trackingNo: o.trackingNo,
-    orderedAt: o.orderedAt.toISOString(),
-  }));
+  const awbOrders: AwbOrder[] = orders.map((o) => {
+    let events: { stage: string; at: string }[] = [];
+    if (o.trackingEvents) {
+      try {
+        events = JSON.parse(o.trackingEvents);
+      } catch {
+        events = [];
+      }
+    }
+    return {
+      id: o.id,
+      platform: o.platform,
+      platformOrderId: o.platformOrderId,
+      buyerName: o.buyerName,
+      items: o.items.map((it) => `${it.name} ×${it.quantity}`).join(", "),
+      total: o.total,
+      status: o.status,
+      deliveryStatus: o.deliveryStatus,
+      returnStatus: o.returnStatus,
+      courier: o.courier,
+      trackingNo: o.trackingNo,
+      orderedAt: o.orderedAt.toISOString(),
+      deliveredAt: o.deliveredAt?.toISOString() ?? null,
+      trackingEvents: events,
+    };
+  });
 
   function filterUrl(p?: string, s?: string) {
     const q = new URLSearchParams();

@@ -1,5 +1,12 @@
 import { db } from "@/lib/db";
-import { type WooOrder, mapWooStatus, getNinjaTracking } from "@/lib/integrations/woocommerce";
+import {
+  type WooOrder,
+  mapWooStatus,
+  getNinjaTracking,
+  getNinjaEvents,
+  mapNinjaDelivery,
+  type TrackingEvent,
+} from "@/lib/integrations/woocommerce";
 
 // Susunan status — sync hanya gerak status KE DEPAN (tak undur).
 const RANK: Record<string, number> = {
@@ -29,6 +36,15 @@ export async function upsertWooOrder(wo: WooOrder): Promise<"imported" | "update
   const mapped = mapWooStatus(wo.status);
   const tracking = getNinjaTracking(wo);
   const courier = tracking ? "Ninja Van" : null;
+
+  // Perjalanan parcel + delivery status dari NinjaVan
+  const events: TrackingEvent[] = getNinjaEvents(wo);
+  const nvDelivery = mapNinjaDelivery(wo.status);
+  const eventsJson = events.length > 0 ? JSON.stringify(events) : null;
+  const findEvent = (kw: string) => events.find((e) => e.stage.toLowerCase().includes(kw))?.at ?? null;
+  const shippedAtStr = findEvent("picked up") ?? findEvent("in transit") ?? findEvent("transit");
+  const deliveredAtStr = nvDelivery?.deliveryStatus === "delivered" ? (findEvent("delivered") ?? findEvent("completed")) : null;
+  const lastAtStr = events.length > 0 ? events[events.length - 1].at : null;
 
   const items = [];
   for (const li of wo.line_items) {
@@ -61,6 +77,13 @@ export async function upsertWooOrder(wo: WooOrder): Promise<"imported" | "update
         trackingNo: tracking ?? existing.trackingNo,
         courier: courier ?? existing.courier,
         awbPrintedAt: printedNow && !existing.awbPrintedAt ? new Date() : existing.awbPrintedAt,
+        // Delivery / journey dari NinjaVan (kalau ada)
+        ...(nvDelivery && { deliveryStatus: nvDelivery.deliveryStatus }),
+        ...(nvDelivery?.returnStatus && existing.returnStatus === "none" && { returnStatus: nvDelivery.returnStatus }),
+        ...(eventsJson && { trackingEvents: eventsJson }),
+        ...(lastAtStr && { lastTrackingAt: new Date(lastAtStr) }),
+        ...(shippedAtStr && !existing.shippedAt && { shippedAt: new Date(shippedAtStr) }),
+        ...(deliveredAtStr && !existing.deliveredAt && { deliveredAt: new Date(deliveredAtStr) }),
       },
     });
     return "updated";
@@ -81,6 +104,12 @@ export async function upsertWooOrder(wo: WooOrder): Promise<"imported" | "update
       trackingNo: tracking,
       courier,
       awbPrintedAt: printedNow ? new Date() : null,
+      deliveryStatus: nvDelivery?.deliveryStatus ?? "pending",
+      returnStatus: nvDelivery?.returnStatus ?? "none",
+      trackingEvents: eventsJson,
+      lastTrackingAt: lastAtStr ? new Date(lastAtStr) : null,
+      shippedAt: shippedAtStr ? new Date(shippedAtStr) : null,
+      deliveredAt: deliveredAtStr ? new Date(deliveredAtStr) : null,
       items: { create: items },
     },
   });

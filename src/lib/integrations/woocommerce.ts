@@ -32,6 +32,62 @@ export function getNinjaTracking(order: WooOrder): string | null {
   return null;
 }
 
+export type TrackingEvent = { stage: string; at: string }; // at = ISO string
+
+// Parser ringkas PHP-serialize untuk array string=>string (guna byte-length).
+// Cth: a:1:{s:14:"pending pickup";s:19:"2026-09-30 07:49:48";}
+function phpStringTokens(s: string): string[] {
+  const tokens: string[] = [];
+  let i = 0;
+  while (i < s.length) {
+    const m = /^s:(\d+):"/.exec(s.slice(i));
+    if (m) {
+      const len = parseInt(m[1], 10);
+      const start = i + m[0].length;
+      tokens.push(s.slice(start, start + len));
+      i = start + len + 2; // lepas tutup " dan ;
+    } else {
+      i++;
+    }
+  }
+  return tokens;
+}
+
+// Perjalanan parcel NinjaVan dari meta _ninja_van_events → senarai event.
+export function getNinjaEvents(order: WooOrder): TrackingEvent[] {
+  const meta = order.meta_data ?? [];
+  const hit = meta.find((m) => m.key === "_ninja_van_events" || m.key === "ninja_van_events");
+  const raw = hit?.value;
+  if (typeof raw !== "string" || !raw.includes("{")) return [];
+  const toks = phpStringTokens(raw);
+  const events: TrackingEvent[] = [];
+  for (let i = 0; i + 1 < toks.length; i += 2) {
+    const stage = toks[i];
+    const dt = toks[i + 1];
+    const parsed = new Date(dt.replace(" ", "T") + "Z");
+    events.push({ stage, at: isNaN(parsed.getTime()) ? dt : parsed.toISOString() });
+  }
+  // Susun ikut masa menaik
+  events.sort((a, b) => a.at.localeCompare(b.at));
+  return events;
+}
+
+// Map status NinjaVan → deliveryStatus + returnStatus dalaman.
+export function mapNinjaDelivery(
+  wooStatus: string
+): { deliveryStatus: string; returnStatus?: string } | null {
+  if (!wooStatus.startsWith("nv-")) return null;
+  const s = wooStatus;
+  if (s.includes("return") || s === "nv-rts") return { deliveryStatus: "returned", returnStatus: "returned" };
+  if (s.includes("delivered") || s.includes("completed") || s.includes("successful"))
+    return { deliveryStatus: "delivered" };
+  if (s.includes("out-for-delivery") || s.includes("on-vehicle")) return { deliveryStatus: "out_for_delivery" };
+  if (s.includes("hold") || s.includes("fail") || s.includes("reschedule") || s.includes("exception"))
+    return { deliveryStatus: "failed" };
+  if (s === "nv-pending-pickup" || s.includes("pending-pickup")) return { deliveryStatus: "pending" };
+  return { deliveryStatus: "in_transit" }; // picked-up, in-transit, hub, transferred, dll
+}
+
 export function getWooConfigFromEnv(): WooConfig | null {
   const url = process.env.WOOCOMMERCE_URL;
   const consumerKey = process.env.WOOCOMMERCE_CONSUMER_KEY;
