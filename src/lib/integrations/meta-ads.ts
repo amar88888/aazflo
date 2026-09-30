@@ -33,12 +33,21 @@ export type MetaInsightRow = {
   purchases: number; // jumlah pembelian
   purchaseValue: number; // nilai jualan RM
   roas: number; // purchaseValue / spend
-  costPerPurchase: number; // spend / purchases
+  costPerPurchase: number; // spend / purchases (CPP)
+  linkClicks: number;
+  landingViews: number; // landing page views
+  convRate: number; // purchases / landingViews (fallback link clicks) %
   // Video (hanya untuk level ad kalau kreatif video)
   thruplays: number; // 15s / complete
   videoViews3s: number; // 3s plays
   hookRate: number; // 3s views / impressions %
   holdRate: number; // thruplays / impressions %
+};
+
+// Baris prestasi kreatif — insight + thumbnail + status untuk grid visual.
+export type MetaCreativePerf = MetaInsightRow & {
+  thumbnailUrl: string | null;
+  videoId: string | null;
 };
 
 export async function getMetaCreds(): Promise<MetaCreds | null> {
@@ -79,6 +88,8 @@ const PURCHASE_PRIORITY = [
 ];
 const V3S_TYPES = ["video_view"];
 const THRUPLAY_TYPES = ["video_thruplay_watched_actions", "video_view_15s"];
+const LPV_PRIORITY = ["landing_page_view", "omni_landing_page_view"];
+const LINKCLICK_PRIORITY = ["link_click"];
 
 type RawInsight = {
   campaign_id?: string;
@@ -108,6 +119,9 @@ function normalize(row: RawInsight, level: "campaign" | "adset" | "ad"): MetaIns
   const purchaseValue = pickFirst(row.action_values, PURCHASE_PRIORITY);
   const videoViews3s = pickFirst(row.actions, V3S_TYPES);
   const thruplays = pickFirst(row.video_thruplay_watched_actions, THRUPLAY_TYPES);
+  const landingViews = pickFirst(row.actions, LPV_PRIORITY);
+  const linkClicks = pickFirst(row.actions, LINKCLICK_PRIORITY);
+  const convBase = landingViews || linkClicks;
   return {
     id: id ?? "",
     name: name ?? "(tiada nama)",
@@ -121,6 +135,9 @@ function normalize(row: RawInsight, level: "campaign" | "adset" | "ad"): MetaIns
     purchaseValue,
     roas: spend > 0 ? purchaseValue / spend : 0,
     costPerPurchase: purchases > 0 ? spend / purchases : 0,
+    linkClicks,
+    landingViews,
+    convRate: convBase > 0 ? (purchases / convBase) * 100 : 0,
     thruplays,
     videoViews3s,
     hookRate: impressions > 0 ? (videoViews3s / impressions) * 100 : 0,
@@ -220,6 +237,68 @@ export function summarize(rows: MetaInsightRow[]): MetaSummary {
     clicks,
     ctr: impressions > 0 ? (clicks / impressions) * 100 : 0,
   };
+}
+
+// ── Ambil senarai ad + thumbnail kreatif (untuk grid visual) ──
+type RawAd = {
+  id: string;
+  name?: string;
+  effective_status?: string;
+  creative?: { thumbnail_url?: string; name?: string; video_id?: string };
+};
+
+type AdCreative = {
+  name: string;
+  status: string;
+  thumbnailUrl: string | null;
+  videoId: string | null;
+};
+
+async function fetchAdCreatives(): Promise<Map<string, AdCreative>> {
+  const creds = await getMetaCreds();
+  if (!creds) throw new Error("Meta Ads belum di-setup.");
+  const map = new Map<string, AdCreative>();
+  const base: Record<string, string> = {
+    fields: "id,name,effective_status,creative{thumbnail_url,name,video_id}",
+    limit: "200",
+  };
+  let params = base;
+  for (let i = 0; i < 10; i++) {
+    const json = await graphGet(`${creds.adAccountId}/ads`, params, creds.accessToken);
+    const data: RawAd[] = json.data ?? [];
+    for (const ad of data) {
+      map.set(ad.id, {
+        name: ad.creative?.name || ad.name || "(tiada nama)",
+        status: ad.effective_status ?? "",
+        thumbnailUrl: ad.creative?.thumbnail_url ?? null,
+        videoId: ad.creative?.video_id ?? null,
+      });
+    }
+    const next = json.paging?.cursors?.after;
+    if (!next || data.length === 0) break;
+    params = { ...base, after: next };
+  }
+  return map;
+}
+
+// Prestasi setiap kreatif (ad) — insight + thumbnail, untuk grid visual.
+export async function fetchCreativePerformance(opts: {
+  datePreset?: MetaDatePreset;
+}): Promise<MetaCreativePerf[]> {
+  const [insights, creatives] = await Promise.all([
+    fetchInsights({ level: "ad", datePreset: opts.datePreset }),
+    fetchAdCreatives().catch(() => new Map<string, AdCreative>()),
+  ]);
+  return insights.map((r) => {
+    const c = creatives.get(r.id);
+    return {
+      ...r,
+      name: c?.name || r.name,
+      status: c?.status || r.status,
+      thumbnailUrl: c?.thumbnailUrl ?? null,
+      videoId: c?.videoId ?? null,
+    };
+  });
 }
 
 // Test sambungan cepat — pulangkan nama akaun kalau token sah.

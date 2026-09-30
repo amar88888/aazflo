@@ -1,12 +1,14 @@
 import type { ReactNode } from "react";
 import { PageHeader, Card, Badge } from "@/components/ui";
-import { KeyRound, TrendingUp, TrendingDown } from "lucide-react";
+import { KeyRound, PlayCircle, Film } from "lucide-react";
 import {
   isMetaReady,
   fetchInsights,
+  fetchCreativePerformance,
   summarize,
   type MetaDatePreset,
   type MetaInsightRow,
+  type MetaCreativePerf,
 } from "@/lib/integrations/meta-ads";
 
 export const dynamic = "force-dynamic";
@@ -28,6 +30,16 @@ function roasColor(roas: number): "green" | "orange" | "red" {
   if (roas >= 1) return "orange";
   return "red";
 }
+function statusColor(s: string | undefined): "green" | "orange" | "red" {
+  if (s === "ACTIVE") return "green";
+  if (s && s.includes("PAUSED")) return "orange";
+  return "red";
+}
+function statusLabel(s: string | undefined): string {
+  if (s === "ACTIVE") return "Aktif";
+  if (s && s.includes("PAUSED")) return "Paused";
+  return s || "—";
+}
 
 function Stat({ label, value, sub }: { label: string; value: string; sub?: string }) {
   return (
@@ -46,7 +58,7 @@ export default async function AdsPage({
 }) {
   const ready = await isMetaReady();
   const sp = await searchParams;
-  const preset = (PRESETS.find((p) => p.key === sp.range)?.key ?? "last_7d") as MetaDatePreset;
+  const preset = (PRESETS.find((p) => p.key === sp.range)?.key ?? "maximum") as MetaDatePreset;
 
   if (!ready) {
     return (
@@ -61,8 +73,7 @@ export default async function AdsPage({
               <h2 className="text-sm font-semibold text-slate-800">Setup Meta Ads dulu</h2>
               <p className="mt-1 text-sm text-slate-600">
                 Buka <b>Settings</b> → kad <b>Meta Ads</b>, isi <b>Access Token</b> (permission{" "}
-                <code className="rounded bg-slate-100 px-1 text-xs">ads_read</code>) & <b>Ad Account ID</b>. Lepas tu
-                dashboard ROAS akan muncul sini.
+                <code className="rounded bg-slate-100 px-1 text-xs">ads_read</code>) & <b>Ad Account ID</b>.
               </p>
             </div>
           </div>
@@ -72,29 +83,25 @@ export default async function AdsPage({
   }
 
   let campaigns: MetaInsightRow[] = [];
-  let ads: MetaInsightRow[] = [];
+  let creatives: MetaCreativePerf[] = [];
   let error: string | null = null;
   try {
-    [campaigns, ads] = await Promise.all([
+    [campaigns, creatives] = await Promise.all([
       fetchInsights({ level: "campaign", datePreset: preset }),
-      fetchInsights({ level: "ad", datePreset: preset }),
+      fetchCreativePerformance({ datePreset: preset }),
     ]);
   } catch (err) {
     error = err instanceof Error ? err.message : String(err);
   }
 
   const sum = summarize(campaigns);
-  const campSorted = [...campaigns].sort((a, b) => b.spend - a.spend);
-  const adsWithSpend = ads.filter((a) => a.spend > 0);
-  const adsByRoas = [...adsWithSpend].sort((a, b) => b.roas - a.roas);
-  const winners = adsByRoas.slice(0, 5);
-  const losers = [...adsWithSpend].sort((a, b) => a.roas - b.roas).slice(0, 5);
+  const withSpend = creatives.filter((c) => c.spend > 0);
+  const byRoas = [...withSpend].sort((a, b) => b.roas - a.roas);
 
   return (
     <div>
-      <PageHeader title="Meta Ads" subtitle="ROAS, spend & prestasi ads terus dari Meta" />
+      <PageHeader title="Meta Ads" subtitle="ROAS, spend & prestasi setiap iklan — monitor & decide nak tutup" />
 
-      {/* Date range */}
       <div className="mb-4 flex flex-wrap gap-2">
         {PRESETS.map((p) => (
           <a
@@ -112,27 +119,51 @@ export default async function AdsPage({
       {error && (
         <Card>
           <p className="text-sm text-red-600">Gagal tarik data Meta: {error}</p>
-          <p className="mt-1 text-xs text-slate-500">
-            Semak token (mungkin expired) & Ad Account ID di Settings → Meta Ads.
-          </p>
+          <p className="mt-1 text-xs text-slate-500">Semak token (mungkin expired) di Settings → Meta Ads.</p>
         </Card>
       )}
 
       {!error && (
         <>
-          {/* Summary */}
           <div className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
             <Stat label="ROAS" value={`${sum.roas.toFixed(2)}x`} sub={sum.roas >= 1 ? "Untung" : "Bawah modal"} />
-            <Stat label="Jualan (Purchase Value)" value={rm(sum.purchaseValue)} sub={`${num(sum.purchases)} purchase`} />
+            <Stat label="Jualan" value={rm(sum.purchaseValue)} sub={`${num(sum.purchases)} purchase`} />
             <Stat label="Spend Iklan" value={rm(sum.spend)} />
-            <Stat label="CTR" value={`${sum.ctr.toFixed(2)}%`} sub={`${num(sum.clicks)} klik`} />
+            <Stat
+              label="Cost / Purchase"
+              value={sum.purchases > 0 ? rm(sum.spend / sum.purchases) : "—"}
+              sub="Pururata semua"
+            />
           </div>
 
-          {/* Campaigns */}
+          {/* Creative performance grid */}
           <Card>
-            <h2 className="mb-3 text-sm font-semibold text-slate-700">Campaign</h2>
-            {campSorted.length === 0 ? (
-              <p className="text-sm text-slate-500">Tiada data untuk tempoh ni.</p>
+            <div className="mb-1 flex items-center justify-between">
+              <h2 className="text-sm font-semibold text-slate-700">Prestasi Setiap Iklan (Creative)</h2>
+              <span className="text-xs text-slate-400">Disusun ROAS tertinggi → rendah</span>
+            </div>
+            <p className="mb-4 text-xs text-slate-500">
+              🟢 ROAS ≥ 2x untung besar · 🟠 1–2x sederhana · 🔴 &lt; 1x rugi (pertimbang tutup)
+            </p>
+
+            {byRoas.length === 0 ? (
+              <p className="text-sm text-slate-500">
+                Tiada iklan dengan spend untuk tempoh ni. Cuba tekan <b>Semua</b> di atas, atau tunggu ads jalan.
+              </p>
+            ) : (
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                {byRoas.map((c) => (
+                  <CreativeCard key={c.id} c={c} />
+                ))}
+              </div>
+            )}
+          </Card>
+
+          {/* Campaign summary table */}
+          <Card className="mt-5">
+            <h2 className="mb-3 text-sm font-semibold text-slate-700">Ringkasan Campaign</h2>
+            {campaigns.length === 0 ? (
+              <p className="text-sm text-slate-500">Tiada data campaign untuk tempoh ni.</p>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
@@ -142,78 +173,98 @@ export default async function AdsPage({
                       <th className="pb-2 pr-3 text-right">Spend</th>
                       <th className="pb-2 pr-3 text-right">Jualan</th>
                       <th className="pb-2 pr-3 text-right">ROAS</th>
-                      <th className="pb-2 pr-3 text-right">Purchase</th>
-                      <th className="pb-2 text-right">Cost/Beli</th>
+                      <th className="pb-2 text-right">Purchase</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {campSorted.map((c) => (
-                      <tr key={c.id} className="border-b border-slate-100">
-                        <td className="py-2 pr-3 font-medium text-slate-700">{c.name}</td>
-                        <td className="py-2 pr-3 text-right text-slate-600">{rm(c.spend)}</td>
-                        <td className="py-2 pr-3 text-right text-slate-600">{rm(c.purchaseValue)}</td>
-                        <td className="py-2 pr-3 text-right">
-                          <Badge color={roasColor(c.roas)}>{c.roas.toFixed(2)}x</Badge>
-                        </td>
-                        <td className="py-2 pr-3 text-right text-slate-600">{num(c.purchases)}</td>
-                        <td className="py-2 text-right text-slate-600">
-                          {c.costPerPurchase > 0 ? rm(c.costPerPurchase) : "—"}
-                        </td>
-                      </tr>
-                    ))}
+                    {[...campaigns]
+                      .sort((a, b) => b.spend - a.spend)
+                      .map((c) => (
+                        <tr key={c.id} className="border-b border-slate-100">
+                          <td className="py-2 pr-3 font-medium text-slate-700">{c.name}</td>
+                          <td className="py-2 pr-3 text-right text-slate-600">{rm(c.spend)}</td>
+                          <td className="py-2 pr-3 text-right text-slate-600">{rm(c.purchaseValue)}</td>
+                          <td className="py-2 pr-3 text-right">
+                            <Badge color={roasColor(c.roas)}>{c.roas.toFixed(2)}x</Badge>
+                          </td>
+                          <td className="py-2 text-right text-slate-600">{num(c.purchases)}</td>
+                        </tr>
+                      ))}
                   </tbody>
                 </table>
               </div>
             )}
           </Card>
-
-          {/* Winners / Losers */}
-          <div className="mt-5 grid gap-4 lg:grid-cols-2">
-            <AdList
-              title="Ads MENANG (ROAS tertinggi)"
-              icon={<TrendingUp size={16} className="text-emerald-500" />}
-              rows={winners}
-            />
-            <AdList
-              title="Ads KALAH (ROAS terendah — pertimbang matikan)"
-              icon={<TrendingDown size={16} className="text-red-500" />}
-              rows={losers}
-            />
-          </div>
         </>
       )}
     </div>
   );
 }
 
-function AdList({ title, icon, rows }: { title: string; icon: ReactNode; rows: MetaInsightRow[] }) {
+function Metric({ label, value, tone }: { label: string; value: string; tone?: "good" | "bad" | "muted" }) {
+  const color = tone === "good" ? "text-emerald-600" : tone === "bad" ? "text-red-600" : "text-slate-700";
   return (
-    <Card>
-      <div className="mb-3 flex items-center gap-2">
-        {icon}
-        <h2 className="text-sm font-semibold text-slate-700">{title}</h2>
+    <div>
+      <p className="text-[10px] uppercase tracking-wide text-slate-400">{label}</p>
+      <p className={`text-sm font-semibold ${color}`}>{value}</p>
+    </div>
+  );
+}
+
+function CreativeCard({ c }: { c: MetaCreativePerf }) {
+  const rc = roasColor(c.roas);
+  const ring = rc === "green" ? "ring-emerald-200" : rc === "orange" ? "ring-amber-200" : "ring-red-200";
+  const badSpender = c.roas < 1 && c.spend >= 20;
+  return (
+    <div className={`overflow-hidden rounded-xl border border-slate-200 ring-1 ${ring}`}>
+      <div className="relative flex h-40 items-center justify-center bg-slate-900">
+        {c.thumbnailUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={c.thumbnailUrl}
+            alt={c.name}
+            referrerPolicy="no-referrer"
+            loading="lazy"
+            className="h-full w-full object-cover"
+          />
+        ) : (
+          <Film size={28} className="text-slate-500" />
+        )}
+        {c.videoId && (
+          <span className="absolute left-2 top-2 rounded-full bg-black/60 p-1 text-white">
+            <PlayCircle size={16} />
+          </span>
+        )}
+        <span className="absolute right-2 top-2">
+          <Badge color={statusColor(c.status)}>{statusLabel(c.status)}</Badge>
+        </span>
+        <span className="absolute bottom-2 right-2 rounded-md bg-black/70 px-2 py-0.5 text-sm font-bold text-white">
+          {c.roas.toFixed(2)}x
+        </span>
       </div>
-      {rows.length === 0 ? (
-        <p className="text-sm text-slate-500">Tiada data.</p>
-      ) : (
-        <div className="space-y-2">
-          {rows.map((a) => (
-            <div key={a.id} className="rounded-lg border border-slate-100 p-2.5">
-              <div className="flex items-center justify-between gap-2">
-                <span className="truncate text-sm font-medium text-slate-700">{a.name}</span>
-                <Badge color={roasColor(a.roas)}>{a.roas.toFixed(2)}x</Badge>
-              </div>
-              <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-slate-500">
-                <span>Spend {rm(a.spend)}</span>
-                <span>Jualan {rm(a.purchaseValue)}</span>
-                <span>{num(a.purchases)} beli</span>
-                {a.hookRate > 0 && <span>Hook {a.hookRate.toFixed(0)}%</span>}
-                {a.holdRate > 0 && <span>Hold {a.holdRate.toFixed(0)}%</span>}
-              </div>
-            </div>
-          ))}
+
+      <div className="p-3">
+        <p className="truncate text-sm font-medium text-slate-700" title={c.name}>
+          {c.name}
+        </p>
+        <div className="mt-2 grid grid-cols-3 gap-2">
+          <Metric label="Spend" value={rm(c.spend)} tone="muted" />
+          <Metric label="Jualan" value={rm(c.purchaseValue)} tone="muted" />
+          <Metric label="Beli" value={num(c.purchases)} tone="muted" />
+          <Metric
+            label="CPP"
+            value={c.costPerPurchase > 0 ? rm(c.costPerPurchase) : "—"}
+            tone={c.costPerPurchase > 0 && c.costPerPurchase <= 30 ? "good" : c.costPerPurchase > 60 ? "bad" : "muted"}
+          />
+          <Metric label="Conv %" value={c.convRate > 0 ? `${c.convRate.toFixed(1)}%` : "—"} tone="muted" />
+          <Metric label="CTR" value={`${c.ctr.toFixed(2)}%`} tone="muted" />
         </div>
-      )}
-    </Card>
+        {badSpender && (
+          <p className="mt-2 rounded-md bg-red-50 px-2 py-1 text-xs font-medium text-red-600">
+            ⚠️ ROAS bawah modal — pertimbang tutup iklan ni
+          </p>
+        )}
+      </div>
+    </div>
   );
 }
