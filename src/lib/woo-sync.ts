@@ -29,8 +29,8 @@ const PRINTED_PLUS = new Set(["printed", "shipped", "completed"]);
 
 // Upsert satu order WooCommerce ke DB. Kembalikan sama ada baru / dikemaskini.
 // Mengambil kira tracking Ninja Van + status nv-* supaya AWB yang dah print
-// terus tertanda "printed" dalam Aazflo.
-export async function upsertWooOrder(wo: WooOrder): Promise<"imported" | "updated"> {
+// terus tertanda "printed" dalam Aazflo. `storeKey` = kedai (maxlim/facelim/...).
+export async function upsertWooOrder(wo: WooOrder, storeKey = "maxlim"): Promise<"imported" | "updated"> {
   const platformOrderId = String(wo.id);
   const buyerName = `${wo.billing.first_name} ${wo.billing.last_name}`.trim() || null;
   const mapped = mapWooStatus(wo.status);
@@ -63,7 +63,7 @@ export async function upsertWooOrder(wo: WooOrder): Promise<"imported" | "update
   }
 
   const existing = await db.order.findUnique({
-    where: { platform_platformOrderId: { platform: "woocommerce", platformOrderId } },
+    where: { platform_store_platformOrderId: { platform: "woocommerce", store: storeKey, platformOrderId } },
   });
 
   if (existing) {
@@ -94,6 +94,7 @@ export async function upsertWooOrder(wo: WooOrder): Promise<"imported" | "update
   await db.order.create({
     data: {
       platform: "woocommerce",
+      store: storeKey,
       platformOrderId,
       status,
       buyerName,

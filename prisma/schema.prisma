@@ -14,6 +14,7 @@ datasource db {
 model Order {
   id              String      @id @default(cuid())
   platform        String // tiktok | shopee | woocommerce
+  store           String      @default("maxlim") // kedai (multi-store woo): maxlim | facelim | ...
   platformOrderId String
   status          String // pending | printed | shipped | completed | cancelled
   buyerName       String?
@@ -44,8 +45,9 @@ model Order {
   createdAt       DateTime    @default(now())
   updatedAt       DateTime    @updatedAt
 
-  @@unique([platform, platformOrderId])
+  @@unique([platform, store, platformOrderId])
   @@index([platform, orderedAt])
+  @@index([store])
   @@index([status])
   @@index([deliveryStatus])
   @@index([returnStatus])

@@ -26,6 +26,7 @@ export type TrackingEvent = { stage: string; at: string };
 export type AwbOrder = {
   id: string;
   platform: string;
+  store: string | null;
   platformOrderId: string;
   buyerName: string | null;
   items: string;
@@ -279,6 +280,9 @@ export function AwbOrdersTable({
                 </td>
                 <td className="px-4 py-3">
                   <PlatformBadge platform={o.platform as Platform} />
+                  {o.store && (
+                    <span className="mt-1 block text-xs font-medium text-violet-600">{o.store}</span>
+                  )}
                 </td>
                 <td className="px-4 py-3 text-slate-600">{o.items || "-"}</td>
                 {!isStaff && <td className="px-4 py-3 text-right font-medium">{formatRM(o.total)}</td>}

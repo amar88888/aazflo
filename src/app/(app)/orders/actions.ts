@@ -42,7 +42,7 @@ export async function importCsvAction(formData: FormData) {
     }
 
     const existing = await db.order.findUnique({
-      where: { platform_platformOrderId: { platform, platformOrderId: o.platformOrderId } },
+      where: { platform_store_platformOrderId: { platform, store: "maxlim", platformOrderId: o.platformOrderId } },
     });
 
     if (existing) {

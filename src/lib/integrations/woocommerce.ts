@@ -1,11 +1,26 @@
 // WooCommerce REST API client — guna consumer key/secret (basic auth).
 // Generate key: WP Admin → WooCommerce → Settings → Advanced → REST API.
 
+import { loadCredentials } from "@/lib/credentials";
+
 export type WooConfig = {
   url: string;
   consumerKey: string;
   consumerSecret: string;
 };
+
+// Satu kedai WooCommerce (multi-store). user/pass = pasangan Basic auth:
+// maxlim guna ck/cs, facelim guna WP user + Application Password.
+export type WooStore = {
+  key: string; // maxlim | facelim | ...
+  name: string; // nama paparan
+  url: string;
+  user: string;
+  pass: string;
+};
+
+// Kedai tambahan disimpan encrypted dalam DB (ApiCredential "woo_stores").
+export type WooStoresCreds = { stores: WooStore[] };
 
 export type WooOrder = {
   id: number;
@@ -96,8 +111,24 @@ export function getWooConfigFromEnv(): WooConfig | null {
   return { url: url.replace(/\/$/, ""), consumerKey, consumerSecret };
 }
 
+// Semua kedai WooCommerce: maxlim dari env + kedai tambahan dari DB.
+export async function getWooStores(): Promise<WooStore[]> {
+  const stores: WooStore[] = [];
+  const cfg = getWooConfigFromEnv();
+  if (cfg) {
+    stores.push({ key: "maxlim", name: "Maxlim", url: cfg.url, user: cfg.consumerKey, pass: cfg.consumerSecret });
+  }
+  const extra = await loadCredentials<WooStoresCreds>("woo_stores");
+  for (const s of extra?.stores ?? []) {
+    if (s.key && s.url && s.user && s.pass) {
+      stores.push({ ...s, url: s.url.replace(/\/$/, ""), name: s.name || s.key });
+    }
+  }
+  return stores;
+}
+
 export async function fetchWooOrders(
-  config: WooConfig,
+  store: WooStore,
   opts: { after?: Date; page?: number } = {}
 ): Promise<WooOrder[]> {
   const params = new URLSearchParams({
@@ -108,8 +139,8 @@ export async function fetchWooOrders(
   });
   if (opts.after) params.set("after", opts.after.toISOString());
 
-  const auth = Buffer.from(`${config.consumerKey}:${config.consumerSecret}`).toString("base64");
-  const res = await fetch(`${config.url}/wp-json/wc/v3/orders?${params}`, {
+  const auth = Buffer.from(`${store.user}:${store.pass}`).toString("base64");
+  const res = await fetch(`${store.url}/wp-json/wc/v3/orders?${params}`, {
     headers: {
       Authorization: `Basic ${auth}`,
       // Sesetengah WAF (cth maxlim.shop) blok request tanpa User-Agent.

@@ -1,6 +1,6 @@
 "use server";
 
-import { fetchWooOrders, getWooConfigFromEnv } from "@/lib/integrations/woocommerce";
+import { fetchWooOrders, getWooStores, type WooStore, type WooStoresCreds } from "@/lib/integrations/woocommerce";
 import { upsertWooOrder } from "@/lib/woo-sync";
 import { buildAuthUrl as buildTikTokAuthUrl } from "@/lib/integrations/tiktok";
 import { buildAuthUrl as buildShopeeAuthUrl } from "@/lib/integrations/shopee";
@@ -71,6 +71,47 @@ export async function testMetaAction() {
   return testMetaConnection();
 }
 
+// ── Kedai WooCommerce tambahan (multi-store) — cth facelim ──
+export async function saveWooStoreAction(formData: FormData) {
+  const key = String(formData.get("key") ?? "").trim().toLowerCase().replace(/[^a-z0-9_-]/g, "");
+  const name = String(formData.get("name") ?? "").trim();
+  const url = String(formData.get("url") ?? "").trim().replace(/\/$/, "");
+  const user = String(formData.get("user") ?? "").trim();
+  const pass = String(formData.get("pass") ?? "").replace(/\s+/g, ""); // buang space (WP app password)
+  if (!key || !url || !user || !pass) return { ok: false, message: "Lengkapkan semua medan." };
+  if (key === "maxlim") return { ok: false, message: "Kunci 'maxlim' dikhaskan untuk kedai utama." };
+
+  const existing = await loadCredentials<WooStoresCreds>("woo_stores");
+  const stores = (existing?.stores ?? []).filter((s) => s.key !== key);
+  stores.push({ key, name: name || key, url, user, pass });
+  await saveCredentials("woo_stores", { stores });
+  revalidatePath("/settings");
+  revalidatePath("/orders");
+  return { ok: true, message: `Kedai "${name || key}" disimpan. Tekan Sync untuk tarik order.` };
+}
+
+export async function testWooStoreAction(formData: FormData) {
+  const url = String(formData.get("url") ?? "").trim().replace(/\/$/, "");
+  const user = String(formData.get("user") ?? "").trim();
+  const pass = String(formData.get("pass") ?? "").replace(/\s+/g, "");
+  if (!url || !user || !pass) return { ok: false, message: "Lengkapkan URL, user & password." };
+  const testStore: WooStore = { key: "__test", name: "test", url, user, pass };
+  try {
+    const orders = await fetchWooOrders(testStore, { page: 1 });
+    return { ok: true, message: `Berjaya sambung — dapat ${orders.length} order.` };
+  } catch (err) {
+    return { ok: false, message: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+export async function removeWooStoreAction(key: string) {
+  const existing = await loadCredentials<WooStoresCreds>("woo_stores");
+  const stores = (existing?.stores ?? []).filter((s) => s.key !== key);
+  await saveCredentials("woo_stores", { stores });
+  revalidatePath("/settings");
+  revalidatePath("/orders");
+}
+
 // ── Fee platform (%) — dipakai dalam P&L bila order tiada fee sebenar ──
 export async function saveFeesAction(formData: FormData) {
   const { setSetting } = await import("@/lib/settings");
@@ -96,35 +137,43 @@ export async function connectShopeeAction() {
 }
 
 export async function syncWooCommerceAction() {
-  const config = getWooConfigFromEnv();
-  if (!config) {
-    return {
-      ok: false,
-      message: "WooCommerce belum di-setup. Isi WOOCOMMERCE_URL, CONSUMER_KEY & CONSUMER_SECRET dalam fail .env dan restart server.",
-    };
+  const stores = await getWooStores();
+  if (stores.length === 0) {
+    return { ok: false, message: "Tiada kedai WooCommerce di-setup." };
   }
 
   try {
-    // Sync 30 hari terakhir, max 3 page (300 order)
+    // Sync 30 hari terakhir, max 3 page setiap kedai (300 order/kedai)
     const after = subDays(new Date(), 30);
     let imported = 0;
     let updated = 0;
+    const notes: string[] = [];
 
-    for (let page = 1; page <= 3; page++) {
-      const orders = await fetchWooOrders(config, { after, page });
-      if (orders.length === 0) break;
-
-      for (const wo of orders) {
-        const res = await upsertWooOrder(wo);
-        if (res === "imported") imported++;
-        else updated++;
+    for (const store of stores) {
+      let si = 0;
+      let su = 0;
+      try {
+        for (let page = 1; page <= 3; page++) {
+          const orders = await fetchWooOrders(store, { after, page });
+          if (orders.length === 0) break;
+          for (const wo of orders) {
+            const res = await upsertWooOrder(wo, store.key);
+            if (res === "imported") si++;
+            else su++;
+          }
+          if (orders.length < 100) break;
+        }
+        notes.push(`${store.name}: ${si} baru, ${su} update`);
+      } catch (err) {
+        notes.push(`${store.name}: GAGAL (${err instanceof Error ? err.message : String(err)})`);
       }
-      if (orders.length < 100) break;
+      imported += si;
+      updated += su;
     }
 
     revalidatePath("/orders");
     revalidatePath("/dashboard");
-    return { ok: true, message: `Sync WooCommerce selesai: ${imported} order baru, ${updated} dikemaskini.` };
+    return { ok: true, message: `Sync selesai — ${notes.join(" · ")}.` };
   } catch (err) {
     return { ok: false, message: `Sync gagal: ${err instanceof Error ? err.message : String(err)}` };
   }

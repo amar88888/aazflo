@@ -1,4 +1,5 @@
-import { getWooConfigFromEnv } from "@/lib/integrations/woocommerce";
+import { getWooConfigFromEnv, getWooStores } from "@/lib/integrations/woocommerce";
+import { WooStoresSettings } from "./woo-stores-settings";
 import { loadCredentials } from "@/lib/credentials";
 import { getTelegramConfig } from "@/lib/telegram";
 import { getPlatformFees } from "@/lib/settings";
@@ -23,6 +24,10 @@ export default async function SettingsPage() {
   const fees = await getPlatformFees();
   const higgsfieldReady = !!(await getHiggsfieldCreds());
   const metaCreds = await getMetaCreds();
+  const allStores = await getWooStores();
+  const extraStores = allStores
+    .filter((s) => s.key !== "maxlim")
+    .map((s) => ({ key: s.key, name: s.name, url: s.url }));
 
   return (
     <div className="max-w-2xl">
@@ -83,6 +88,20 @@ export default async function SettingsPage() {
               </ol>
             </div>
           )}
+        </Card>
+
+        <Card>
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="text-sm font-semibold text-slate-700">Kedai Tambahan (Multi-store)</h2>
+            <Badge color={extraStores.length > 0 ? "green" : "slate"}>
+              {extraStores.length > 0 ? `${extraStores.length} kedai` : "Maxlim sahaja"}
+            </Badge>
+          </div>
+          <p className="mb-3 text-sm text-slate-600">
+            Sambung kedai WooCommerce lain (cth <b>Facelim</b>) ke Aazflo. Order, AWB & tracking semua kedai masuk sini,
+            boleh filter ikut kedai. Guna <b>Consumer Key/Secret</b> ATAU <b>WP username + Application Password</b>.
+          </p>
+          <WooStoresSettings stores={extraStores} />
         </Card>
 
         <Card>
