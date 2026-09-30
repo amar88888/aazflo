@@ -54,28 +54,31 @@ export async function isMetaReady(): Promise<boolean> {
   return (await getMetaCreds()) !== null;
 }
 
-// ── Helper: cari value dalam array actions/action_values ──
-function pickAction(
+// ── Helper: ambil value action MENGIKUT KEUTAMAAN (bukan campur) ──
+// Meta report pembelian yang SAMA di bawah banyak action_type (purchase,
+// omni_purchase, offsite_conversion.fb_pixel_purchase, dll) — semua nilai sama.
+// Kalau kita campur, jadi 4x ganda. Jadi ambil YANG PERTAMA wujud ikut keutamaan.
+function pickFirst(
   arr: Array<{ action_type: string; value: string }> | undefined,
-  types: string[]
+  typesByPriority: string[]
 ): number {
   if (!arr) return 0;
-  let sum = 0;
-  for (const a of arr) {
-    if (types.includes(a.action_type)) sum += Number(a.value) || 0;
+  for (const t of typesByPriority) {
+    const hit = arr.find((a) => a.action_type === t);
+    if (hit) return Number(hit.value) || 0;
   }
-  return sum;
+  return 0;
 }
 
-// Jenis action pembelian yang mungkin (web pixel / offsite).
-const PURCHASE_TYPES = [
-  "purchase",
+// Keutamaan jenis pembelian — ambil satu je (omni_purchase = gabungan Meta).
+const PURCHASE_PRIORITY = [
   "omni_purchase",
+  "purchase",
   "offsite_conversion.fb_pixel_purchase",
   "onsite_web_purchase",
 ];
 const V3S_TYPES = ["video_view"];
-const THRUPLAY_TYPES = ["video_thruplay_watched_actions"];
+const THRUPLAY_TYPES = ["video_thruplay_watched_actions", "video_view_15s"];
 
 type RawInsight = {
   campaign_id?: string;
@@ -101,10 +104,10 @@ function normalize(row: RawInsight, level: "campaign" | "adset" | "ad"): MetaIns
     level === "campaign" ? row.campaign_name : level === "adset" ? row.adset_name : row.ad_name;
   const spend = Number(row.spend) || 0;
   const impressions = Number(row.impressions) || 0;
-  const purchases = pickAction(row.actions, PURCHASE_TYPES);
-  const purchaseValue = pickAction(row.action_values, PURCHASE_TYPES);
-  const videoViews3s = pickAction(row.actions, V3S_TYPES);
-  const thruplays = pickAction(row.video_thruplay_watched_actions, THRUPLAY_TYPES);
+  const purchases = pickFirst(row.actions, PURCHASE_PRIORITY);
+  const purchaseValue = pickFirst(row.action_values, PURCHASE_PRIORITY);
+  const videoViews3s = pickFirst(row.actions, V3S_TYPES);
+  const thruplays = pickFirst(row.video_thruplay_watched_actions, THRUPLAY_TYPES);
   return {
     id: id ?? "",
     name: name ?? "(tiada nama)",
