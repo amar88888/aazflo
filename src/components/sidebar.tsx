@@ -12,6 +12,7 @@ import {
   Calculator,
   Tag,
   Sparkles,
+  Megaphone,
   Settings,
   LogOut,
 } from "lucide-react";
@@ -24,6 +25,7 @@ const NAV = [
   { href: "/ops", label: "Operasi Office", icon: ClipboardList, staff: true },
   { href: "/live", label: "Live Sessions", icon: Radio, staff: false },
   { href: "/content", label: "Content AI", icon: Sparkles, staff: false },
+  { href: "/ads", label: "Meta Ads", icon: Megaphone, staff: false },
   { href: "/pnl", label: "Profit & Loss", icon: Calculator, staff: false },
   { href: "/products", label: "Produk & COGS", icon: Tag, staff: false },
   { href: "/settings", label: "Settings", icon: Settings, staff: false },

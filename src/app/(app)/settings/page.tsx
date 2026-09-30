@@ -6,6 +6,8 @@ import { PageHeader, Card, Badge } from "@/components/ui";
 import { SyncWooButton } from "./sync-button";
 import { TelegramSettings } from "./telegram-settings";
 import { getHiggsfieldCreds } from "@/lib/integrations/higgsfield";
+import { getMetaCreds } from "@/lib/integrations/meta-ads";
+import { MetaSettings } from "./meta-settings";
 import { connectTikTokAction, connectShopeeAction, saveFeesAction, saveHiggsfieldAction } from "./actions";
 
 export const dynamic = "force-dynamic";
@@ -20,6 +22,7 @@ export default async function SettingsPage() {
   const telegramReady = !!(telegram.botToken && telegram.chatId);
   const fees = await getPlatformFees();
   const higgsfieldReady = !!(await getHiggsfieldCreds());
+  const metaCreds = await getMetaCreds();
 
   return (
     <div className="max-w-2xl">
@@ -198,6 +201,23 @@ export default async function SettingsPage() {
           {higgsfieldReady && (
             <p className="mt-2 text-xs text-emerald-600">✓ Key tersimpan. Buka menu <b>Content AI</b> untuk jana video.</p>
           )}
+        </Card>
+
+        <Card>
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="text-sm font-semibold text-slate-700">Meta Ads (Facebook/Instagram)</h2>
+            <Badge color={metaCreds ? "green" : "orange"}>{metaCreds ? "Connected" : "Belum setup"}</Badge>
+          </div>
+          <p className="mb-3 text-sm text-slate-600">
+            Tarik ROAS, spend, purchases & prestasi video terus dari Meta Ads. Perlu{" "}
+            <b>Access Token</b> (permission <code className="rounded bg-slate-100 px-1 text-xs">ads_read</code>) &{" "}
+            <b>Ad Account ID</b> (format <code className="rounded bg-slate-100 px-1 text-xs">act_XXXX</code>). Buka menu{" "}
+            <b>Meta Ads</b> untuk lihat dashboard selepas connect.
+          </p>
+          <MetaSettings
+            hasToken={!!metaCreds?.accessToken}
+            adAccountId={metaCreds?.adAccountId ?? ""}
+          />
         </Card>
       </div>
     </div>

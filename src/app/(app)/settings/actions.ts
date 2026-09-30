@@ -51,6 +51,26 @@ export async function saveHiggsfieldAction(formData: FormData) {
   revalidatePath("/content");
 }
 
+// ── Meta Ads — simpan access token + ad account ID (encrypted) ──
+export async function saveMetaAction(formData: FormData) {
+  const accessToken = String(formData.get("accessToken") ?? "").trim();
+  let adAccountId = String(formData.get("adAccountId") ?? "").trim();
+  if (adAccountId && !adAccountId.startsWith("act_")) adAccountId = `act_${adAccountId}`;
+  const { loadCredentials } = await import("@/lib/credentials");
+  const existing = await loadCredentials<{ accessToken: string; adAccountId: string }>("meta");
+  await saveCredentials("meta", {
+    accessToken: accessToken || existing?.accessToken || "",
+    adAccountId: adAccountId || existing?.adAccountId || "",
+  });
+  revalidatePath("/settings");
+  revalidatePath("/ads");
+}
+
+export async function testMetaAction() {
+  const { testMetaConnection } = await import("@/lib/integrations/meta-ads");
+  return testMetaConnection();
+}
+
 // ── Fee platform (%) — dipakai dalam P&L bila order tiada fee sebenar ──
 export async function saveFeesAction(formData: FormData) {
   const { setSetting } = await import("@/lib/settings");
