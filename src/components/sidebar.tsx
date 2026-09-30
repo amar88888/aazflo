@@ -15,6 +15,7 @@ import {
   Megaphone,
   Settings,
   LogOut,
+  X,
 } from "lucide-react";
 import { Logo } from "@/components/logo";
 
@@ -31,28 +32,51 @@ const NAV = [
   { href: "/settings", label: "Settings", icon: Settings, staff: false },
 ];
 
-export function Sidebar({ role = "admin" }: { role?: string }) {
+export function Sidebar({
+  role = "admin",
+  open = false,
+  onClose,
+}: {
+  role?: string;
+  open?: boolean;
+  onClose?: () => void;
+}) {
   const pathname = usePathname();
   const nav = role === "staff" ? NAV.filter((n) => n.staff) : NAV;
 
   return (
-    <aside className="sidebar-grad flex h-screen w-60 flex-col text-white">
-      <div className="px-5 py-5">
-        <Logo dark />
-        {role === "staff" && (
-          <span className="mt-2 inline-flex rounded-full bg-white/15 px-2.5 py-0.5 text-[11px] font-medium text-indigo-100">
-            Akaun Staff · akses terhad
-          </span>
-        )}
+    <aside
+      className={`sidebar-grad fixed inset-y-0 left-0 z-40 flex h-screen w-64 flex-col text-white transition-transform duration-200 lg:static lg:z-auto lg:w-60 lg:translate-x-0 ${
+        open ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
+      }`}
+    >
+      <div className="flex items-center justify-between px-5 py-5">
+        <div>
+          <Logo dark />
+          {role === "staff" && (
+            <span className="mt-2 inline-flex rounded-full bg-white/15 px-2.5 py-0.5 text-[11px] font-medium text-indigo-100">
+              Akaun Staff · akses terhad
+            </span>
+          )}
+        </div>
+        {/* Butang tutup (mobile sahaja) */}
+        <button
+          onClick={onClose}
+          aria-label="Tutup menu"
+          className="rounded-lg p-1.5 text-indigo-200/80 hover:bg-white/10 hover:text-white lg:hidden"
+        >
+          <X size={20} />
+        </button>
       </div>
-      <nav className="flex-1 space-y-1 px-3">
+      <nav className="flex-1 space-y-1 overflow-y-auto px-3">
         {nav.map(({ href, label, icon: Icon }) => {
           const active = pathname.startsWith(href);
           return (
             <Link
               key={href}
               href={href}
-              className={`relative flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+              onClick={onClose}
+              className={`relative flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
                 active
                   ? "bg-white/15 text-white shadow-sm ring-1 ring-white/10"
                   : "text-indigo-200/80 hover:bg-white/10 hover:text-white"
