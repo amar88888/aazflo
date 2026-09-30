@@ -67,7 +67,7 @@ export default async function DashboardPage({
         title="Dashboard"
         subtitle={`${d.periodLabel} — Revenue ${formatRM(d.revenue)} · AOV ${formatRM(d.aov)}`}
         action={
-          <div className="flex flex-wrap items-center justify-end gap-2">
+          <div className="flex flex-wrap items-center justify-start gap-2 sm:justify-end">
             <div className="flex flex-wrap gap-1 rounded-lg border border-slate-200 bg-white p-0.5 text-sm">
               {DASHBOARD_PERIODS.map((p) => (
                 <Link
