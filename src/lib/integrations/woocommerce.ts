@@ -20,7 +20,17 @@ export type WooOrder = {
     quantity: number;
     price: number | string;
   }[];
+  meta_data?: { key: string; value: unknown }[];
 };
+
+// Ambil nombor tracking NinjaVan dari meta order (plugin Ninja Van WooCommerce).
+export function getNinjaTracking(order: WooOrder): string | null {
+  const meta = order.meta_data ?? [];
+  const hit = meta.find((m) => m.key === "ninja_van_tracking_number" || m.key === "_ninja_van_tracking_number");
+  const v = hit?.value;
+  if (typeof v === "string" && v.trim()) return v.trim();
+  return null;
+}
 
 export function getWooConfigFromEnv(): WooConfig | null {
   const url = process.env.WOOCOMMERCE_URL;
@@ -44,7 +54,11 @@ export async function fetchWooOrders(
 
   const auth = Buffer.from(`${config.consumerKey}:${config.consumerSecret}`).toString("base64");
   const res = await fetch(`${config.url}/wp-json/wc/v3/orders?${params}`, {
-    headers: { Authorization: `Basic ${auth}` },
+    headers: {
+      Authorization: `Basic ${auth}`,
+      // Sesetengah WAF (cth maxlim.shop) blok request tanpa User-Agent.
+      "User-Agent": "Aazflo/1.0 (+https://aazflo.com)",
+    },
     cache: "no-store",
   });
 
@@ -55,8 +69,30 @@ export async function fetchWooOrders(
   return res.json();
 }
 
-// Map status WooCommerce → status dalaman BizOps
+// Map status WooCommerce → status dalaman BizOps.
+// Termasuk status khas plugin Ninja Van (nv-*) — bila AWB dijana, status Woo
+// jadi "nv-pending-pickup" dsb, jadi kita kena kenal supaya tanda "printed".
 export function mapWooStatus(wooStatus: string): string {
+  // Status Ninja Van (plugin WooCommerce)
+  if (wooStatus.startsWith("nv-")) {
+    switch (wooStatus) {
+      case "nv-pending-pickup":
+        return "printed"; // AWB dah dijana, tunggu pickup
+      case "nv-cancelled":
+      case "nv-returned-to-sender":
+      case "nv-return-to-sender":
+      case "nv-rts":
+      case "nv-on-hold": // masalah penghantaran — anggap perlu perhatian, bukan selesai
+        return wooStatus === "nv-on-hold" ? "shipped" : "cancelled";
+      case "nv-completed":
+      case "nv-delivered":
+      case "nv-successful-delivery":
+        return "completed";
+      default:
+        // nv-picked-up, nv-in-transit, nv-arrived-*, nv-out-for-delivery, dll
+        return "shipped";
+    }
+  }
   switch (wooStatus) {
     case "cancelled":
     case "refunded":

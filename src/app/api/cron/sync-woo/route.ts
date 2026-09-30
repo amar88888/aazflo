@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { db } from "@/lib/db";
-import { fetchWooOrders, getWooConfigFromEnv, mapWooStatus } from "@/lib/integrations/woocommerce";
+import { fetchWooOrders, getWooConfigFromEnv } from "@/lib/integrations/woocommerce";
+import { upsertWooOrder } from "@/lib/woo-sync";
 
 export const dynamic = "force-dynamic";
 
@@ -31,54 +31,9 @@ export async function GET(req: Request) {
       if (orders.length === 0) break;
 
       for (const wo of orders) {
-        const platformOrderId = String(wo.id);
-        const buyerName = `${wo.billing.first_name} ${wo.billing.last_name}`.trim() || null;
-        const status = mapWooStatus(wo.status);
-
-        const items = [];
-        for (const li of wo.line_items) {
-          let productId: string | null = null;
-          if (li.sku) {
-            const product = await db.product.findFirst({
-              where: { OR: [{ sku: li.sku }, { wooSku: li.sku }] },
-            });
-            productId = product?.id ?? null;
-          }
-          items.push({
-            sku: li.sku || null,
-            name: li.name,
-            quantity: li.quantity,
-            unitPrice: Number(li.price) || 0,
-            productId,
-          });
-        }
-
-        const existing = await db.order.findUnique({
-          where: { platform_platformOrderId: { platform: "woocommerce", platformOrderId } },
-        });
-
-        if (existing) {
-          await db.order.update({
-            where: { id: existing.id },
-            data: { status: existing.status === "pending" ? status : existing.status, total: Number(wo.total) || 0 },
-          });
-          updated++;
-        } else {
-          await db.order.create({
-            data: {
-              platform: "woocommerce",
-              platformOrderId,
-              status,
-              buyerName,
-              total: Number(wo.total) || 0,
-              shippingFee: Number(wo.shipping_total) || 0,
-              orderedAt: new Date(wo.date_created),
-              source: "api",
-              items: { create: items },
-            },
-          });
-          imported++;
-        }
+        const res = await upsertWooOrder(wo);
+        if (res === "imported") imported++;
+        else updated++;
       }
       if (orders.length < 100) break;
     }
