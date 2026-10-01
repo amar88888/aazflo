@@ -10,7 +10,13 @@ import { loadCredentials } from "@/lib/credentials";
 const GRAPH_VERSION = "v21.0";
 const GRAPH = `https://graph.facebook.com/${GRAPH_VERSION}`;
 
-export type MetaCreds = { accessToken: string; adAccountId: string };
+export type MetaCreds = {
+  accessToken: string;
+  adAccountId: string;
+  appId?: string;
+  appSecret?: string;
+  tokenSetAt?: number; // epoch ms bila token long-lived diperoleh (untuk auto-refresh)
+};
 
 export type MetaDatePreset =
   | "today"
@@ -56,11 +62,91 @@ export async function getMetaCreds(): Promise<MetaCreds | null> {
   let adAccountId = (fromDb?.adAccountId || process.env.META_AD_ACCOUNT_ID || "").trim();
   if (!accessToken || !adAccountId) return null;
   if (!adAccountId.startsWith("act_")) adAccountId = `act_${adAccountId}`;
-  return { accessToken, adAccountId };
+  return {
+    accessToken,
+    adAccountId,
+    appId: fromDb?.appId || process.env.META_APP_ID,
+    appSecret: fromDb?.appSecret || process.env.META_APP_SECRET,
+    tokenSetAt: fromDb?.tokenSetAt,
+  };
 }
 
 export async function isMetaReady(): Promise<boolean> {
   return (await getMetaCreds()) !== null;
+}
+
+// ── Token kekal: tukar token pendek → long-lived (60 hari), auto-renew ──
+// Facebook: GET /oauth/access_token?grant_type=fb_exchange_token&client_id&client_secret&fb_exchange_token
+async function exchangeToLongLived(shortToken: string, appId: string, appSecret: string): Promise<string> {
+  const qs = new URLSearchParams({
+    grant_type: "fb_exchange_token",
+    client_id: appId,
+    client_secret: appSecret,
+    fb_exchange_token: shortToken,
+  });
+  const res = await fetch(`${GRAPH}/oauth/access_token?${qs}`, { cache: "no-store" });
+  const json = await res.json();
+  if (!res.ok || json.error || !json.access_token) {
+    throw new Error(json.error?.message || `Tukar token gagal (HTTP ${res.status})`);
+  }
+  return json.access_token as string;
+}
+
+// Simpan token (tukar ke long-lived dulu kalau ada appId+appSecret).
+export async function saveMetaToken(opts: {
+  accessToken: string;
+  adAccountId: string;
+  appId?: string;
+  appSecret?: string;
+}): Promise<{ longLived: boolean }> {
+  const { saveCredentials } = await import("@/lib/credentials");
+  const existing = await loadCredentials<MetaCreds>("meta");
+  const appId = (opts.appId || existing?.appId || process.env.META_APP_ID || "").trim();
+  const appSecret = (opts.appSecret || existing?.appSecret || process.env.META_APP_SECRET || "").trim();
+  let adAccountId = opts.adAccountId.trim();
+  if (adAccountId && !adAccountId.startsWith("act_")) adAccountId = `act_${adAccountId}`;
+
+  let token = opts.accessToken.trim();
+  let longLived = false;
+  if (appId && appSecret && token) {
+    try {
+      token = await exchangeToLongLived(token, appId, appSecret);
+      longLived = true;
+    } catch {
+      // kalau gagal tukar (cth token dah long-lived / salah secret), simpan apa adanya
+    }
+  }
+  await saveCredentials("meta", {
+    accessToken: token,
+    adAccountId: adAccountId || existing?.adAccountId || "",
+    appId: appId || undefined,
+    appSecret: appSecret || undefined,
+    tokenSetAt: longLived ? Date.now() : existing?.tokenSetAt,
+  });
+  return { longLived };
+}
+
+// Auto-renew: tukar token long-lived semasa kepada token 60-hari baru.
+// Dipanggil cron. Hanya refresh kalau token dah lebih tua dari `minAgeDays`.
+export async function refreshMetaToken(minAgeDays = 0): Promise<{ ok: boolean; message: string }> {
+  const creds = await loadCredentials<MetaCreds>("meta");
+  if (!creds?.accessToken) return { ok: false, message: "Meta belum di-setup." };
+  const appId = creds.appId || process.env.META_APP_ID;
+  const appSecret = creds.appSecret || process.env.META_APP_SECRET;
+  if (!appId || !appSecret) return { ok: false, message: "App ID / App Secret tiada — tak boleh auto-refresh." };
+
+  const ageMs = creds.tokenSetAt ? Date.now() - creds.tokenSetAt : Infinity;
+  if (ageMs < minAgeDays * 86400000) {
+    return { ok: true, message: "Token masih baru, tak perlu refresh." };
+  }
+  try {
+    const fresh = await exchangeToLongLived(creds.accessToken, appId, appSecret);
+    const { saveCredentials } = await import("@/lib/credentials");
+    await saveCredentials("meta", { ...creds, accessToken: fresh, tokenSetAt: Date.now() });
+    return { ok: true, message: "Token Meta di-refresh (60 hari lagi)." };
+  } catch (err) {
+    return { ok: false, message: err instanceof Error ? err.message : String(err) };
+  }
 }
 
 // ── Helper: ambil value action MENGIKUT KEUTAMAAN (bukan campur) ──

@@ -4,14 +4,24 @@ import { useState, useTransition } from "react";
 import { saveMetaAction, testMetaAction } from "./actions";
 import { Save, Plug } from "lucide-react";
 
-export function MetaSettings({ hasToken, adAccountId }: { hasToken: boolean; adAccountId: string }) {
+export function MetaSettings({
+  hasToken,
+  adAccountId,
+  hasAppSecret,
+  appId,
+}: {
+  hasToken: boolean;
+  adAccountId: string;
+  hasAppSecret: boolean;
+  appId: string;
+}) {
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [pending, start] = useTransition();
 
   function save(fd: FormData) {
     start(async () => {
-      await saveMetaAction(fd);
-      setMsg({ ok: true, text: "Disimpan. Tekan Test untuk sahkan sambungan." });
+      const r = await saveMetaAction(fd);
+      setMsg({ ok: r?.ok ?? true, text: r?.message ?? "Disimpan. Tekan Test untuk sahkan." });
     });
   }
 
@@ -44,6 +54,25 @@ export function MetaSettings({ hasToken, adAccountId }: { hasToken: boolean; adA
             placeholder="act_1234567890"
             className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
           />
+        </div>
+        <div className="rounded-lg bg-violet-50 p-3">
+          <p className="mb-2 text-xs font-medium text-violet-700">
+            🔒 Token kekal (auto-renew) — isi App ID + App Secret supaya token tak expire lagi
+          </p>
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+            <input
+              name="appId"
+              defaultValue={appId}
+              placeholder="App ID (cth 1628709562096006)"
+              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+            />
+            <input
+              name="appSecret"
+              type="password"
+              placeholder={hasAppSecret ? "•••••••• (dah ada ✓)" : "App Secret"}
+              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+            />
+          </div>
         </div>
         <button
           disabled={pending}

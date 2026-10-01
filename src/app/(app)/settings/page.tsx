@@ -236,6 +236,8 @@ export default async function SettingsPage() {
           <MetaSettings
             hasToken={!!metaCreds?.accessToken}
             adAccountId={metaCreds?.adAccountId ?? ""}
+            hasAppSecret={!!metaCreds?.appSecret}
+            appId={metaCreds?.appId ?? "1628709562096006"}
           />
         </Card>
       </div>

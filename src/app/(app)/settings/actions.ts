@@ -51,19 +51,31 @@ export async function saveHiggsfieldAction(formData: FormData) {
   revalidatePath("/content");
 }
 
-// ── Meta Ads — simpan access token + ad account ID (encrypted) ──
+// ── Meta Ads — simpan token + ad account; auto-tukar ke long-lived (kekal) ──
 export async function saveMetaAction(formData: FormData) {
   const accessToken = String(formData.get("accessToken") ?? "").trim();
-  let adAccountId = String(formData.get("adAccountId") ?? "").trim();
-  if (adAccountId && !adAccountId.startsWith("act_")) adAccountId = `act_${adAccountId}`;
+  const adAccountId = String(formData.get("adAccountId") ?? "").trim();
+  const appId = String(formData.get("appId") ?? "").trim();
+  const appSecret = String(formData.get("appSecret") ?? "").trim();
+
   const { loadCredentials } = await import("@/lib/credentials");
+  const { saveMetaToken } = await import("@/lib/integrations/meta-ads");
   const existing = await loadCredentials<{ accessToken: string; adAccountId: string }>("meta");
-  await saveCredentials("meta", {
+
+  const res = await saveMetaToken({
     accessToken: accessToken || existing?.accessToken || "",
     adAccountId: adAccountId || existing?.adAccountId || "",
+    appId,
+    appSecret,
   });
   revalidatePath("/settings");
   revalidatePath("/ads");
+  return {
+    ok: true,
+    message: res.longLived
+      ? "Disimpan — token ditukar ke 60-hari & akan auto-renew (kekal)."
+      : "Disimpan. (Tambah App Secret untuk token kekal auto-renew.)",
+  };
 }
 
 export async function testMetaAction() {

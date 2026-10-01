@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { fetchWooOrders, getWooStores } from "@/lib/integrations/woocommerce";
 import { upsertWooOrder } from "@/lib/woo-sync";
+import { refreshMetaToken } from "@/lib/integrations/meta-ads";
 
 export const dynamic = "force-dynamic";
 
@@ -51,11 +52,21 @@ export async function GET(req: Request) {
     }
   }
 
+  // Auto-renew token Meta (best-effort) — refresh kalau dah >7 hari. Elak expire.
+  let metaRefresh = "skip";
+  try {
+    const r = await refreshMetaToken(7);
+    metaRefresh = r.message;
+  } catch {
+    /* abaikan — jangan gagalkan sync woo */
+  }
+
   return NextResponse.json({
     ok: true,
     imported,
     updated,
     perStore,
+    metaRefresh,
     message: `Sync selesai: ${imported} baru, ${updated} update (${stores.length} kedai).`,
   });
 }
