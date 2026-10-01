@@ -23,6 +23,6 @@ export default withAuth(
 export const config = {
   matcher: [
     // Kecualikan: login, auth, cron, aset _next, favicon, aset PWA (manifest & service worker), dan fail imej/font.
-    "/((?!login|api/auth|api/cron|manifest.webmanifest|sw.js|_next/static|_next/image|favicon.ico|.*\\.(?:png|jpg|jpeg|svg|gif|webp|ico|woff2?)).*)",
+    "/((?!login|api/auth|api/cron|api/meta-thumb|manifest.webmanifest|sw.js|_next/static|_next/image|favicon.ico|.*\\.(?:png|jpg|jpeg|svg|gif|webp|ico|woff2?)).*)",
   ],
 };

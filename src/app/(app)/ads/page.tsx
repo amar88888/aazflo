@@ -221,9 +221,8 @@ function CreativeCard({ c }: { c: MetaCreativePerf }) {
         {c.thumbnailUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
-            src={c.thumbnailUrl}
+            src={`/api/meta-thumb?url=${encodeURIComponent(c.thumbnailUrl)}`}
             alt={c.name}
-            referrerPolicy="no-referrer"
             loading="lazy"
             className="h-full w-full object-cover"
           />
