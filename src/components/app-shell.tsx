@@ -22,8 +22,11 @@ export function AppShell({ role, children }: { role: string; children: React.Rea
       )}
 
       <div className="flex flex-1 flex-col overflow-hidden">
-        {/* Top bar — mobile sahaja */}
-        <header className="flex items-center gap-3 border-b border-slate-200 bg-white/85 px-4 py-3 backdrop-blur-sm lg:hidden">
+        {/* Top bar — mobile sahaja. Safe-area supaya tak terlindung jam/notch iPhone */}
+        <header
+          className="flex items-center gap-3 border-b border-slate-200 bg-white/85 px-4 pb-3 backdrop-blur-sm lg:hidden"
+          style={{ paddingTop: "calc(env(safe-area-inset-top) + 0.75rem)" }}
+        >
           <button
             onClick={() => setOpen(true)}
             aria-label="Buka menu"

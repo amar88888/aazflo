@@ -50,7 +50,10 @@ export function Sidebar({
         open ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
       }`}
     >
-      <div className="flex items-center justify-between px-5 py-5">
+      <div
+        className="flex items-center justify-between px-5 pb-5"
+        style={{ paddingTop: "calc(env(safe-area-inset-top) + 1.25rem)" }}
+      >
         <div>
           <Logo dark />
           {role === "staff" && (
