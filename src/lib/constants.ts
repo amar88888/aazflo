@@ -31,6 +31,9 @@ export type ExpenseType = (typeof EXPENSE_TYPES)[number];
 // kita cuma pantau era ads, bukan order lama. Tukar di sini kalau nak reset titik mula.
 export const DATA_START = new Date("2026-10-05T00:00:00+08:00");
 
+// Order kedai SG (facelimsg, maxlimsg) disimpan dalam SGD — tukar ke RM bila kira untung.
+export const SGD_TO_MYR = 3.5;
+
 export const EXPENSE_TYPE_LABELS: Record<ExpenseType, string> = {
   ads: "Iklan (Ads)",
   fixed: "Kos Tetap",

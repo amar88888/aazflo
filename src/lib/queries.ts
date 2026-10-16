@@ -1,5 +1,17 @@
 import { db } from "@/lib/db";
-import { PLATFORMS, DATA_START, type Platform } from "@/lib/constants";
+import { PLATFORMS, DATA_START, SGD_TO_MYR, type Platform } from "@/lib/constants";
+
+// Order kedai SG dalam SGD — tukar total & harga item ke RM (in-memory) sebelum kira.
+// shippingFee SG dah dalam RM (RM17/RM25), jadi tak ditukar.
+function toMyr<T extends { store: string; total: number; items?: { unitPrice: number }[] }>(list: T[]): T[] {
+  for (const o of list) {
+    if (/sg/i.test(o.store)) {
+      o.total *= SGD_TO_MYR;
+      for (const it of o.items ?? []) it.unitPrice *= SGD_TO_MYR;
+    }
+  }
+  return list;
+}
 import { getPlatformFees } from "@/lib/settings";
 import {
   startOfDay,
@@ -155,6 +167,8 @@ export async function getDashboardData(r: DashRange): Promise<DashboardData> {
       include: { items: { include: { product: true } } },
     }),
   ]);
+  toMyr(orders);
+  toMyr(prevOrders);
   const feeOf = (o: { platform: string; platformFee: number; total: number }) =>
     o.platformFee > 0 ? o.platformFee : o.total * ((feeRates[o.platform as Platform] ?? 0) / 100);
   const cogsOf = (o: { items: { quantity: number; product: { cogsPerUnit: number } | null }[] }) =>
@@ -215,7 +229,7 @@ export async function getDashboardData(r: DashRange): Promise<DashboardData> {
   const supplies = await db.supply.findMany({ select: { currentStock: true, reorderLevel: true } });
   const lowStockCount = supplies.filter((s) => s.currentStock <= s.reorderLevel).length;
 
-  const recent = await db.order.findMany({ orderBy: { orderedAt: "desc" }, take: 6, include: { items: true } });
+  const recent = toMyr(await db.order.findMany({ orderBy: { orderedAt: "desc" }, take: 6, include: { items: true } }));
   const recentOrders = recent.map((o) => ({
     id: o.id,
     platformOrderId: o.platformOrderId,
@@ -271,6 +285,7 @@ export async function getPnlData(from: Date, to: Date): Promise<PnlData> {
     where: { orderedAt: { gte: floor, lte: to }, status: { in: ACTIVE_STATUSES } },
     include: { items: { include: { product: true } } },
   });
+  toMyr(orders);
 
   const revenue = orders.reduce((s, o) => s + o.total, 0);
   // Fee sebenar dari platform kalau ada; kalau tiada (cth: import CSV), anggar guna fee % setting
