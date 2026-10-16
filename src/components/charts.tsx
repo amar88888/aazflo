@@ -84,11 +84,29 @@ export function RevenueTrendChart({
   );
 }
 
+// Dot "live" berkelip di titik data terakhir line hijau — vibe real-time
+function livePulseDot(lastIndex: number, color: string) {
+  return (p: { cx?: number; cy?: number; index?: number; key?: string }) => {
+    const k = p.key ?? `ld${p.index}`;
+    if (p.index !== lastIndex || p.cx == null || p.cy == null) return <g key={k} />;
+    return (
+      <g key={k}>
+        <circle cx={p.cx} cy={p.cy} r={3.5} fill={color} />
+        <circle cx={p.cx} cy={p.cy} r={3.5} fill="none" stroke={color} strokeWidth={2}>
+          <animate attributeName="r" values="3.5;13" dur="1.6s" repeatCount="indefinite" />
+          <animate attributeName="opacity" values="0.9;0" dur="1.6s" repeatCount="indefinite" />
+        </circle>
+      </g>
+    );
+  };
+}
+
 export function RevenueProfitChart({
   data,
 }: {
   data: { date: string; revenue: number; profit: number }[];
 }) {
+  const lastIndex = data.length - 1;
   return (
     <ResponsiveContainer width="100%" height={280}>
       <AreaChart data={data} margin={{ top: 8, right: 8, left: 8, bottom: 0 }}>
@@ -118,7 +136,7 @@ export function RevenueProfitChart({
         />
         <Legend formatter={(v) => (v === "revenue" ? "Revenue" : "Untung bersih")} iconType="circle" wrapperStyle={{ color: "#cbd5e1", fontSize: 12 }} />
         <Area type="monotone" dataKey="revenue" stroke={PLATINUM} strokeWidth={2.6} fill="url(#rev-grad)" fillOpacity={1} style={{ filter: "url(#glow-plat)" }} activeDot={{ r: 4, fill: PLATINUM, stroke: "#0b0f1e", strokeWidth: 2 }} />
-        <Area type="monotone" dataKey="profit" stroke={PROFIT} strokeWidth={2.8} fill="url(#prof-grad)" fillOpacity={1} style={{ filter: "url(#glow-prof)" }} activeDot={{ r: 5, fill: PROFIT, stroke: "#0b0f1e", strokeWidth: 2 }} />
+        <Area type="monotone" dataKey="profit" stroke={PROFIT} strokeWidth={2.8} fill="url(#prof-grad)" fillOpacity={1} style={{ filter: "url(#glow-prof)" }} dot={livePulseDot(lastIndex, PROFIT) as never} activeDot={{ r: 5, fill: PROFIT, stroke: "#0b0f1e", strokeWidth: 2 }} />
       </AreaChart>
     </ResponsiveContainer>
   );
