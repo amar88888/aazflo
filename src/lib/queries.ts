@@ -1,5 +1,5 @@
 import { db } from "@/lib/db";
-import { PLATFORMS, type Platform } from "@/lib/constants";
+import { PLATFORMS, DATA_START, type Platform } from "@/lib/constants";
 import { getPlatformFees } from "@/lib/settings";
 import {
   startOfDay,
@@ -252,8 +252,10 @@ export type PnlData = {
 };
 
 export async function getPnlData(from: Date, to: Date): Promise<PnlData> {
+  // Abaikan order sebelum kita start ads (DATA_START).
+  const floor = from < DATA_START ? DATA_START : from;
   const orders = await db.order.findMany({
-    where: { orderedAt: { gte: from, lte: to }, status: { in: ACTIVE_STATUSES } },
+    where: { orderedAt: { gte: floor, lte: to }, status: { in: ACTIVE_STATUSES } },
     include: { items: { include: { product: true } } },
   });
 

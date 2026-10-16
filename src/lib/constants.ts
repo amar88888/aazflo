@@ -27,6 +27,10 @@ export const ORDER_STATUS_LABELS: Record<OrderStatus, string> = {
 export const EXPENSE_TYPES = ["ads", "fixed", "other"] as const;
 export type ExpenseType = (typeof EXPENSE_TYPES)[number];
 
+// Tarikh kita mula run ads (5 Okt 2026). Data order sebelum ni diabaikan di semua dashboard —
+// kita cuma pantau era ads, bukan order lama. Tukar di sini kalau nak reset titik mula.
+export const DATA_START = new Date("2026-10-05T00:00:00+08:00");
+
 export const EXPENSE_TYPE_LABELS: Record<ExpenseType, string> = {
   ads: "Iklan (Ads)",
   fixed: "Kos Tetap",

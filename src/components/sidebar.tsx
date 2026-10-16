@@ -14,6 +14,7 @@ import {
   Sparkles,
   Megaphone,
   Settings,
+  Banknote,
   LogOut,
   X,
 } from "lucide-react";
@@ -28,6 +29,7 @@ const NAV = [
   { href: "/content", label: "Content AI", icon: Sparkles, staff: false },
   { href: "/ads", label: "Meta Ads", icon: Megaphone, staff: false },
   { href: "/pnl", label: "Profit & Loss", icon: Calculator, staff: false },
+  { href: "/cashflow", label: "Cashflow COD", icon: Banknote, staff: true },
   { href: "/products", label: "Produk & COGS", icon: Tag, staff: false },
   { href: "/settings", label: "Settings", icon: Settings, staff: false },
 ];
