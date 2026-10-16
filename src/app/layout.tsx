@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Michroma } from "next/font/google";
+import { Michroma, Space_Grotesk, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { PwaRegister } from "@/components/pwa-register";
 
@@ -7,6 +7,20 @@ const brandFont = Michroma({
   weight: "400",
   subsets: ["latin"],
   variable: "--font-brand",
+  display: "swap",
+});
+
+// UI utama — geometrik, moden, sci-fi
+const uiFont = Space_Grotesk({
+  subsets: ["latin"],
+  variable: "--font-ui",
+  display: "swap",
+});
+
+// Nombor / data — mono gaya HUD terminal
+const monoFont = JetBrains_Mono({
+  subsets: ["latin"],
+  variable: "--font-mono",
   display: "swap",
 });
 
@@ -31,7 +45,7 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#4f46e5",
+  themeColor: "#070b16",
   width: "device-width",
   initialScale: 1,
   maximumScale: 1,
@@ -40,7 +54,7 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="ms" className={brandFont.variable}>
+    <html lang="ms" className={`${brandFont.variable} ${uiFont.variable} ${monoFont.variable}`}>
       <body className="antialiased">
         {children}
         <PwaRegister />

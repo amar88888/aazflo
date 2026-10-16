@@ -24,13 +24,13 @@ export function AppShell({ role, children }: { role: string; children: React.Rea
       <div className="flex flex-1 flex-col overflow-hidden">
         {/* Top bar — mobile sahaja. Safe-area supaya tak terlindung jam/notch iPhone */}
         <header
-          className="flex items-center gap-3 border-b border-slate-200 bg-white/85 px-4 pb-3 backdrop-blur-sm lg:hidden"
+          className="flex items-center gap-3 border-b border-indigo-500/20 bg-[#070a14]/85 px-4 pb-3 backdrop-blur-md lg:hidden"
           style={{ paddingTop: "calc(env(safe-area-inset-top) + 0.75rem)" }}
         >
           <button
             onClick={() => setOpen(true)}
             aria-label="Buka menu"
-            className="rounded-lg p-1.5 text-slate-600 hover:bg-slate-100"
+            className="rounded-lg p-1.5 text-indigo-200 hover:bg-white/10"
           >
             <Menu size={22} />
           </button>
