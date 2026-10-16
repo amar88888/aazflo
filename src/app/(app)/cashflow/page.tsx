@@ -1,9 +1,18 @@
 import { getCashflowData, type StoreCashflow } from "@/lib/cashflow";
+import { fetchStripeBalance, fetchStripePayouts, type StripePayout, type StripeBalance } from "@/lib/integrations/stripe";
 import { formatRM } from "@/lib/format";
 import { PageHeader, Card, StatCard } from "@/components/ui";
 import { startOfMonth, endOfMonth, format } from "date-fns";
 import Link from "next/link";
-import { Banknote, Truck, XCircle, Wallet } from "lucide-react";
+import { Banknote, Truck, XCircle, Wallet, CreditCard, Landmark } from "lucide-react";
+
+function curSym(c: string): string {
+  const u = c.toUpperCase();
+  return u === "MYR" ? "RM" : u === "SGD" ? "S$" : u + " ";
+}
+function fmtSen(currency: string, sen: number): string {
+  return curSym(currency) + Math.round(sen / 100).toLocaleString("en-US");
+}
 
 export const dynamic = "force-dynamic";
 
@@ -34,6 +43,18 @@ export default async function CashflowPage({
   const to = endOfMonth(base);
 
   const stores = await getCashflowData(from, to);
+
+  // Stripe (duit kad): balance + payout ke bank bulan ni. Defensif — skip kalau tak configured.
+  let stripeBalance: StripeBalance | null = null;
+  let stripePayouts: StripePayout[] = [];
+  try {
+    [stripeBalance, stripePayouts] = await Promise.all([
+      fetchStripeBalance(),
+      fetchStripePayouts({ from, to, limit: 50 }),
+    ]);
+  } catch {
+    /* abaikan — jangan gagalkan page */
+  }
 
   const monthLabel = format(from, "MMMM yyyy");
   const prevMonth = format(new Date(from.getFullYear(), from.getMonth() - 1, 1), "yyyy-MM");
@@ -107,6 +128,86 @@ export default async function CashflowPage({
         {stores.map((s) => (
           <StoreCard key={s.store} s={s} label={storeLabel(s.store)} />
         ))}
+      </div>
+
+      {(stripeBalance || stripePayouts.length > 0) && (
+        <StripeSection balance={stripeBalance} payouts={stripePayouts} monthLabel={monthLabel} />
+      )}
+    </div>
+  );
+}
+
+function StripeSection({
+  balance,
+  payouts,
+  monthLabel,
+}: {
+  balance: StripeBalance | null;
+  payouts: StripePayout[];
+  monthLabel: string;
+}) {
+  const paid = payouts.filter((p) => p.status === "paid");
+  // payout ikut currency
+  const paidByCur = new Map<string, number>();
+  for (const p of paid) paidByCur.set(p.currency, (paidByCur.get(p.currency) ?? 0) + p.amount);
+  const upcoming = payouts.filter((p) => p.status !== "paid");
+
+  return (
+    <div className="mt-6">
+      <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold text-slate-700">
+        <CreditCard size={16} className="text-violet-600" /> Stripe — Duit Kad
+      </h2>
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        {/* Dah masuk bank */}
+        <Card>
+          <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-slate-800">
+            <Landmark size={15} className="text-emerald-600" /> Payout ke bank — {monthLabel}
+          </div>
+          {paidByCur.size === 0 ? (
+            <p className="py-3 text-sm text-slate-400">Tiada payout tiba bulan ni.</p>
+          ) : (
+            <div className="space-y-2 text-sm">
+              {[...paidByCur.entries()].map(([cur, amt]) => (
+                <div key={cur} className="flex items-center justify-between">
+                  <span className="text-slate-600">Dah masuk bank ({cur})</span>
+                  <span className="font-bold text-emerald-600">{fmtSen(cur, amt)}</span>
+                </div>
+              ))}
+              <p className="pt-1 text-xs text-slate-400">{paid.length} payout selesai</p>
+            </div>
+          )}
+          {upcoming.length > 0 && (
+            <p className="mt-2 border-t border-slate-100 pt-2 text-xs text-slate-500">
+              + {upcoming.length} payout dalam perjalanan ke bank
+            </p>
+          )}
+        </Card>
+
+        {/* Dalam Stripe (belum payout) */}
+        <Card>
+          <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-slate-800">
+            <CreditCard size={15} className="text-cyan-600" /> Baki dalam Stripe
+          </div>
+          {!balance ? (
+            <p className="py-3 text-sm text-slate-400">—</p>
+          ) : (
+            <div className="space-y-2 text-sm">
+              {balance.pending.map((b, i) => (
+                <div key={`p${i}`} className="flex items-center justify-between">
+                  <span className="text-slate-600">Pending ({b.currency.toUpperCase()})</span>
+                  <span className="font-semibold text-amber-600">{fmtSen(b.currency, b.amount)}</span>
+                </div>
+              ))}
+              {balance.available.map((b, i) => (
+                <div key={`a${i}`} className="flex items-center justify-between">
+                  <span className="text-slate-600">Available ({b.currency.toUpperCase()})</span>
+                  <span className="font-semibold text-slate-800">{fmtSen(b.currency, b.amount)}</span>
+                </div>
+              ))}
+              <p className="pt-1 text-xs text-slate-400">Belum payout — akan masuk bank ikut jadual Stripe.</p>
+            </div>
+          )}
+        </Card>
       </div>
     </div>
   );
