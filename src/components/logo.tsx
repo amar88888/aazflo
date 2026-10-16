@@ -2,11 +2,12 @@
 
 export function LogoMark({ size = 32 }: { size?: number }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <svg width={size} height={size} viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg"
+      style={{ filter: "drop-shadow(0 0 6px rgba(34,211,238,0.65))" }}>
       <defs>
         <linearGradient id="azPeak" x1="5" y1="36" x2="35" y2="4" gradientUnits="userSpaceOnUse">
-          <stop stopColor="#7c3aed" />
-          <stop offset="0.5" stopColor="#4f46e5" />
+          <stop stopColor="#a855f7" />
+          <stop offset="0.5" stopColor="#6366f1" />
           <stop offset="1" stopColor="#22d3ee" />
         </linearGradient>
       </defs>

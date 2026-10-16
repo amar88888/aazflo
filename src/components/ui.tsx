@@ -5,7 +5,7 @@ export function PageHeader({ title, subtitle, action }: { title: string; subtitl
     <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
       <div>
         <h1 className="heading-gradient text-2xl font-bold tracking-tight">{title}</h1>
-        {subtitle && <p className="mt-1 text-sm text-slate-500">{subtitle}</p>}
+        {subtitle && <p className="mt-1 text-sm text-slate-400">{subtitle}</p>}
       </div>
       {action && <div className="min-w-0 max-w-full overflow-x-auto">{action}</div>}
     </div>
@@ -13,13 +13,7 @@ export function PageHeader({ title, subtitle, action }: { title: string; subtitl
 }
 
 export function Card({ children, className = "" }: { children: ReactNode; className?: string }) {
-  return (
-    <div
-      className={`rounded-2xl border border-white/60 bg-white/85 p-5 shadow-sm shadow-violet-500/5 backdrop-blur-sm ${className}`}
-    >
-      {children}
-    </div>
-  );
+  return <div className={`glass-panel rounded-2xl p-5 ${className}`}>{children}</div>;
 }
 
 const TONES: Record<string, string> = {
@@ -49,30 +43,31 @@ export function StatCard({
   deltaLabel?: string;
 }) {
   const accentClass =
-    accent === "green" ? "text-emerald-600" : accent === "red" ? "text-red-600" : "text-slate-900";
+    accent === "green" ? "text-emerald-300" : accent === "red" ? "text-rose-300" : "text-white";
   const grad = TONES[tone] ?? TONES.violet;
   return (
-    <div className="group relative overflow-hidden rounded-2xl border border-white/60 bg-white/85 p-5 shadow-sm shadow-violet-500/5 backdrop-blur-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-violet-500/15">
+    <div className="stat-card group relative overflow-hidden rounded-2xl p-5">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="text-xs font-medium uppercase tracking-wide text-slate-500">{label}</p>
-          <p className={`mt-1.5 text-2xl font-bold tracking-tight ${accentClass}`}>{value}</p>
+          <p className="t-label text-xs font-medium uppercase tracking-wider">{label}</p>
+          <p className={`stat-value text-glow mt-1.5 text-2xl font-bold tracking-tight ${accentClass}`}>{value}</p>
           {delta != null && (
-            <p className={`mt-1 inline-flex items-center gap-1 text-xs font-medium ${delta >= 0 ? "text-emerald-600" : "text-red-600"}`}>
-              {delta >= 0 ? "▲" : "▼"} {Math.abs(delta).toFixed(0)}% <span className="font-normal text-slate-400">{deltaLabel ?? "vs semalam"}</span>
+            <p className={`mt-1 inline-flex items-center gap-1 text-xs font-medium ${delta >= 0 ? "text-emerald-300" : "text-rose-300"}`}>
+              {delta >= 0 ? "▲" : "▼"} {Math.abs(delta).toFixed(0)}% <span className="t-sub font-normal">{deltaLabel ?? "vs semalam"}</span>
             </p>
           )}
-          {sub && <p className="mt-1 text-xs text-slate-500">{sub}</p>}
+          {sub && <p className="t-sub mt-1 text-xs">{sub}</p>}
         </div>
         {Icon && (
           <div
-            className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br ${grad} text-white shadow-md`}
+            className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br ${grad} text-white`}
+            style={{ boxShadow: "0 0 18px -2px rgba(34,211,238,0.6)" }}
           >
             <Icon size={18} />
           </div>
         )}
       </div>
-      <div className={`absolute inset-x-0 bottom-0 h-1 bg-gradient-to-r ${grad} opacity-80`} />
+      <div className={`absolute inset-x-0 bottom-0 h-0.5 bg-gradient-to-r ${grad}`} />
     </div>
   );
 }
