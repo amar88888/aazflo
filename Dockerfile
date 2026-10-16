@@ -15,6 +15,9 @@ RUN npx prisma generate && npm run build
 FROM base AS runner
 WORKDIR /app
 ENV NODE_ENV=production
+# Zon waktu Malaysia (UTC+8) supaya "Hari Ni"/tarikh ikut waktu tempatan
+ENV TZ=Asia/Kuala_Lumpur
+RUN apk add --no-cache tzdata
 RUN addgroup --system --gid 1001 nodejs && adduser --system --uid 1001 nextjs
 COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
