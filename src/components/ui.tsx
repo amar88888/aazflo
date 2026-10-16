@@ -16,13 +16,6 @@ export function Card({ children, className = "" }: { children: ReactNode; classN
   return <div className={`glass-panel rounded-2xl p-5 ${className}`}>{children}</div>;
 }
 
-const TONES: Record<string, string> = {
-  violet: "from-violet-500 to-indigo-500",
-  cyan: "from-cyan-500 to-blue-500",
-  emerald: "from-emerald-500 to-teal-500",
-  amber: "from-amber-500 to-orange-500",
-};
-
 export function StatCard({
   label,
   value,
@@ -44,7 +37,6 @@ export function StatCard({
 }) {
   const accentClass =
     accent === "green" ? "text-emerald-300" : accent === "red" ? "text-rose-300" : "text-white";
-  const grad = TONES[tone] ?? TONES.violet;
   return (
     <div className="stat-card group relative overflow-hidden rounded-2xl p-5">
       <div className="flex items-start justify-between gap-3">
@@ -60,26 +52,29 @@ export function StatCard({
         </div>
         {Icon && (
           <div
-            className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br ${grad} text-white`}
-            style={{ boxShadow: "0 0 18px -2px rgba(34,211,238,0.6)" }}
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-slate-600 to-slate-800 text-slate-100 ring-1 ring-white/10"
+            style={{ boxShadow: "0 0 16px -4px rgba(var(--m2-rgb), 0.55)" }}
           >
             <Icon size={18} />
           </div>
         )}
       </div>
-      <div className={`absolute inset-x-0 bottom-0 h-0.5 bg-gradient-to-r ${grad}`} />
+      <div
+        className="absolute inset-x-0 bottom-0 h-0.5"
+        style={{ background: "linear-gradient(90deg, rgba(var(--m2-rgb),0.12), rgb(var(--m2-rgb)) 55%, rgba(var(--m2-rgb),0.12))" }}
+      />
     </div>
   );
 }
 
 export function Badge({ children, color = "slate" }: { children: ReactNode; color?: string }) {
   const colors: Record<string, string> = {
-    slate: "bg-slate-100 text-slate-700",
-    green: "bg-emerald-100 text-emerald-700",
-    red: "bg-red-100 text-red-700",
-    orange: "bg-orange-100 text-orange-700",
-    blue: "bg-blue-100 text-blue-700",
-    purple: "bg-purple-100 text-purple-700",
+    slate: "bg-white/10 text-slate-200 ring-1 ring-white/10",
+    green: "bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-400/20",
+    red: "bg-rose-500/15 text-rose-300 ring-1 ring-rose-400/20",
+    orange: "bg-orange-500/15 text-orange-300 ring-1 ring-orange-400/20",
+    blue: "bg-sky-500/15 text-sky-300 ring-1 ring-sky-400/20",
+    purple: "bg-violet-500/15 text-violet-300 ring-1 ring-violet-400/20",
   };
   return (
     <span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium ${colors[color] ?? colors.slate}`}>
