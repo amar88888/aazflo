@@ -22,6 +22,13 @@ const JOBS: Job[] = [
   },
 ];
 
+// Rekod larian terakhir setiap job (untuk /api/cron/jadual-status).
+type RunLog = Record<string, { at: string; ok: boolean; errors: string[] }>;
+export function jadualLog(): RunLog {
+  const g = globalThis as { __aazfloJadualLog?: RunLog };
+  return (g.__aazfloJadualLog ??= {});
+}
+
 function mytNow() {
   const d = new Date(Date.now() + 8 * 3600 * 1000);
   return { h: d.getUTCHours(), m: d.getUTCMinutes(), key: d.toISOString().slice(0, 16) };
@@ -52,6 +59,7 @@ async function runJob(job: Job, secret: string) {
     else if (err) errors.push(err);
   }
   console.log(`[jadual] ${job.name}: ${errors.length ? "GAGAL " + errors.join(" | ") : "ok"}`);
+  jadualLog()[job.name] = { at: new Date().toISOString(), ok: errors.length === 0, errors };
   if (errors.length) {
     await sendTelegram(`⚠️ <b>Jadual Aazflo gagal</b> (${job.name})\n${errors.join("\n").replace(/</g, "&lt;")}`).catch(
       () => {}
