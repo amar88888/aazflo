@@ -90,10 +90,18 @@ export async function GET(req: Request) {
       });
     }
 
-    // Jumlah budget semasa (unik per adset)
+    // Budget SEBENAR semua adset aktif (authoritative — utk cap yang tepat)
+    const adsetRes = await gget(`${adAccountId}/adsets`, { fields: "id,name,daily_budget", limit: "200", effective_status: "['ACTIVE']" });
+    const budgetById = new Map<string, number>();
+    let totalBudget = 0;
+    for (const s of adsetRes.data || []) {
+      const b = s.daily_budget ? parseInt(s.daily_budget) / 100 : 0;
+      budgetById.set(s.id, b);
+      totalBudget += b;
+    }
+    // Adset yang ada ad aktif (calon scale)
     const adsetBudget = new Map<string, { name: string; budget: number }>();
-    for (const a of ads) if (!adsetBudget.has(a.adsetId)) adsetBudget.set(a.adsetId, { name: a.adsetName, budget: a.budget });
-    let totalBudget = [...adsetBudget.values()].reduce((s, x) => s + x.budget, 0);
+    for (const a of ads) if (!adsetBudget.has(a.adsetId)) adsetBudget.set(a.adsetId, { name: a.adsetName, budget: budgetById.get(a.adsetId) ?? a.budget });
 
     const actions: string[] = [];
 
