@@ -16,13 +16,6 @@ export function Card({ children, className = "" }: { children: ReactNode; classN
   return <div className={`glass-panel rounded-2xl p-5 ${className}`}>{children}</div>;
 }
 
-const TONES: Record<string, string> = {
-  violet: "from-violet-500 to-indigo-500",
-  cyan: "from-cyan-500 to-blue-500",
-  emerald: "from-emerald-500 to-teal-500",
-  amber: "from-amber-500 to-orange-500",
-};
-
 export function StatCard({
   label,
   value,
@@ -44,7 +37,6 @@ export function StatCard({
 }) {
   const accentClass =
     accent === "green" ? "text-emerald-300" : accent === "red" ? "text-rose-300" : "text-white";
-  const grad = TONES[tone] ?? TONES.violet;
   return (
     <div className="stat-card group relative overflow-hidden rounded-2xl p-5">
       <div className="flex items-start justify-between gap-3">
@@ -60,14 +52,17 @@ export function StatCard({
         </div>
         {Icon && (
           <div
-            className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br ${grad} text-white`}
-            style={{ boxShadow: "0 0 18px -2px rgba(34,211,238,0.6)" }}
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-slate-600 to-slate-800 text-slate-100 ring-1 ring-white/10"
+            style={{ boxShadow: "0 0 16px -4px rgba(var(--m2-rgb), 0.55)" }}
           >
             <Icon size={18} />
           </div>
         )}
       </div>
-      <div className={`absolute inset-x-0 bottom-0 h-0.5 bg-gradient-to-r ${grad}`} />
+      <div
+        className="absolute inset-x-0 bottom-0 h-0.5"
+        style={{ background: "linear-gradient(90deg, rgba(var(--m2-rgb),0.12), rgb(var(--m2-rgb)) 55%, rgba(var(--m2-rgb),0.12))" }}
+      />
     </div>
   );
 }

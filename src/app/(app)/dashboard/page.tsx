@@ -68,14 +68,17 @@ export default async function DashboardPage({
         subtitle={`${d.periodLabel} — Revenue ${formatRM(d.revenue)} · AOV ${formatRM(d.aov)}`}
         action={
           <div className="flex flex-wrap items-center justify-start gap-2 sm:justify-end">
-            <div className="flex flex-wrap gap-1 rounded-lg border border-slate-200 bg-white p-0.5 text-sm">
+            <div className="flex flex-wrap gap-1 rounded-lg border border-white/10 bg-white/5 p-0.5 text-sm backdrop-blur">
               {DASHBOARD_PERIODS.map((p) => (
                 <Link
                   key={p.key}
                   href={`/dashboard?p=${p.key}`}
                   className={`rounded-md px-2.5 py-1.5 font-medium transition-colors ${
-                    !activeCustom && activePreset === p.key ? "bg-violet-600 text-white" : "text-slate-600 hover:bg-slate-100"
+                    !activeCustom && activePreset === p.key
+                      ? "text-white"
+                      : "text-slate-300 hover:bg-white/10"
                   }`}
+                  style={!activeCustom && activePreset === p.key ? { background: "rgb(var(--m2-rgb))" } : undefined}
                 >
                   {p.label}
                 </Link>
