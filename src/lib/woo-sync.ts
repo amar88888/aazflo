@@ -44,6 +44,8 @@ export async function upsertWooOrder(wo: WooOrder, storeKey = "maxlim"): Promise
   const platformOrderId = String(wo.id);
   const buyerName = `${wo.billing.first_name} ${wo.billing.last_name}`.trim() || null;
   const ship = fulfilCost(storeKey, (wo as { payment_method?: string }).payment_method ?? "");
+  const createdGmt = (wo as { date_created_gmt?: string }).date_created_gmt;
+  const orderedAt = createdGmt ? new Date(createdGmt + "Z") : new Date(wo.date_created);
   const mapped = mapWooStatus(wo.status);
   const tracking = getNinjaTracking(wo);
   const courier = tracking ? "Ninja Van" : null;
@@ -86,6 +88,7 @@ export async function upsertWooOrder(wo: WooOrder, storeKey = "maxlim"): Promise
         status,
         total: Number(wo.total) || 0,
         shippingFee: ship,
+        orderedAt,
         trackingNo: tracking ?? existing.trackingNo,
         courier: courier ?? existing.courier,
         awbPrintedAt: printedNow && !existing.awbPrintedAt ? new Date() : existing.awbPrintedAt,
@@ -112,7 +115,7 @@ export async function upsertWooOrder(wo: WooOrder, storeKey = "maxlim"): Promise
       buyerName,
       total: Number(wo.total) || 0,
       shippingFee: ship,
-      orderedAt: new Date(wo.date_created),
+      orderedAt,
       source: "api",
       trackingNo: tracking,
       courier,
