@@ -10,7 +10,8 @@ export async function GET(req: NextRequest) {
   if (secret && provided !== secret) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
-  const report = await buildDailyReport();
+  // ?pagi=1 → rumusan SEMALAM (untuk laporan pagi)
+  const report = await buildDailyReport({ yesterday: req.nextUrl.searchParams.get("pagi") === "1" });
   const result = await sendTelegram(report);
   return NextResponse.json(result, { status: result.ok ? 200 : 500 });
 }
