@@ -10,6 +10,7 @@ import {
 
 // Susunan status — sync hanya gerak status KE DEPAN (tak undur).
 const RANK: Record<string, number> = {
+  unpaid: -1,
   pending: 0,
   printed: 1,
   shipped: 2,
@@ -20,6 +21,8 @@ const RANK: Record<string, number> = {
 function decideStatus(existing: string, mapped: string): string {
   if (mapped === "cancelled") return "cancelled"; // Woo batal → batal
   if (existing === "cancelled") return "cancelled"; // jangan auto un-cancel
+  // Pembetulan: order yang Woo kata belum bayar tapi tersimpan "pending" (sebelum status unpaid wujud)
+  if (mapped === "unpaid" && existing === "pending") return "unpaid";
   const re = RANK[existing] ?? 0;
   const rm = RANK[mapped] ?? 0;
   return rm > re ? mapped : existing;

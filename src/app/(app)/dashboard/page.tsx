@@ -24,6 +24,7 @@ export const dynamic = "force-dynamic";
 
 // Palet "mewah": platinum menaik untuk in-progress, hijau (good), fade (batal)
 const STATUS_DOT: Record<string, string> = {
+  unpaid: "bg-slate-700",
   pending: "bg-slate-500",
   printed: "bg-slate-400",
   shipped: "bg-slate-300",

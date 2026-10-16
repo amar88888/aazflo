@@ -214,6 +214,10 @@ export function mapWooStatus(wooStatus: string): string {
       return "completed";
     case "processing":
       return "pending"; // dah bayar, belum hantar → perlu proses/AWB
+    case "pending":
+    case "on-hold":
+    case "checkout-draft":
+      return "unpaid"; // belum bayar (kad/FPX/transfer) — jangan kira jualan & jangan print AWB
     default:
       return "pending";
   }
