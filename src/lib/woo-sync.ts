@@ -27,12 +27,23 @@ function decideStatus(existing: string, mapped: string): string {
 
 const PRINTED_PLUS = new Set(["printed", "shipped", "completed"]);
 
+// Kos fulfilment SEBENAR (bukan caj customer): NinjaVan + gateway.
+// MY: COD RM8, prepaid NinjaVan RM5 + Billplz RM1 = RM6. SG: COD RM25, prepaid RM17.
+// Disimpan dalam Order.shippingFee (caj customer = free, jadi field ni dipakai utk kos kita).
+function fulfilCost(storeKey: string, paymentMethod: string): number {
+  const isSg = /sg/i.test(storeKey);
+  const isCod = (paymentMethod || "").toLowerCase() === "cod";
+  if (isSg) return isCod ? 25 : 17;
+  return isCod ? 8 : 6;
+}
+
 // Upsert satu order WooCommerce ke DB. Kembalikan sama ada baru / dikemaskini.
 // Mengambil kira tracking Ninja Van + status nv-* supaya AWB yang dah print
 // terus tertanda "printed" dalam Aazflo. `storeKey` = kedai (maxlim/facelim/...).
 export async function upsertWooOrder(wo: WooOrder, storeKey = "maxlim"): Promise<"imported" | "updated"> {
   const platformOrderId = String(wo.id);
   const buyerName = `${wo.billing.first_name} ${wo.billing.last_name}`.trim() || null;
+  const ship = fulfilCost(storeKey, (wo as { payment_method?: string }).payment_method ?? "");
   const mapped = mapWooStatus(wo.status);
   const tracking = getNinjaTracking(wo);
   const courier = tracking ? "Ninja Van" : null;
@@ -74,6 +85,7 @@ export async function upsertWooOrder(wo: WooOrder, storeKey = "maxlim"): Promise
       data: {
         status,
         total: Number(wo.total) || 0,
+        shippingFee: ship,
         trackingNo: tracking ?? existing.trackingNo,
         courier: courier ?? existing.courier,
         awbPrintedAt: printedNow && !existing.awbPrintedAt ? new Date() : existing.awbPrintedAt,
@@ -99,7 +111,7 @@ export async function upsertWooOrder(wo: WooOrder, storeKey = "maxlim"): Promise
       status,
       buyerName,
       total: Number(wo.total) || 0,
-      shippingFee: Number(wo.shipping_total) || 0,
+      shippingFee: ship,
       orderedAt: new Date(wo.date_created),
       source: "api",
       trackingNo: tracking,

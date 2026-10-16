@@ -82,6 +82,10 @@ export default async function PnlPage({
                 <td className="py-2.5 text-slate-600">(−) COGS (modal produk)</td>
                 <td className="py-2.5 text-right text-red-600">−{formatRM(pnl.cogs)}</td>
               </tr>
+              <tr className="border-b border-slate-100">
+                <td className="py-2.5 text-slate-600">(−) Shipping / COD</td>
+                <td className="py-2.5 text-right text-red-600">−{formatRM(pnl.shipping)}</td>
+              </tr>
               <tr className="border-b border-slate-200 bg-slate-50">
                 <td className="py-2.5 font-semibold">Gross Profit</td>
                 <td className="py-2.5 text-right font-semibold">{formatRM(pnl.grossProfit)}</td>
