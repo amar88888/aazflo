@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { fetchWooOrders, getWooStores } from "@/lib/integrations/woocommerce";
 import { upsertWooOrder } from "@/lib/woo-sync";
 import { refreshMetaToken } from "@/lib/integrations/meta-ads";
+import { DATA_START } from "@/lib/constants";
 
 export const dynamic = "force-dynamic";
 
@@ -22,9 +23,11 @@ export async function GET(req: Request) {
     return NextResponse.json({ ok: false, message: "Tiada kedai WooCommerce di-setup." }, { status: 400 });
   }
 
-  // Default tangkap 600 hari ke belakang.
+  // Default tangkap 600 hari ke belakang, TAPI jangan lebih awal dari DATA_START
+  // (kita cuma nak order dari tarikh mula ads — order lama tak di-import).
   const days = Math.min(Math.max(parseInt(url.searchParams.get("days") ?? "600", 10) || 600, 1), 1200);
-  const after = new Date(Date.now() - days * 86400000);
+  const rawAfter = new Date(Date.now() - days * 86400000);
+  const after = rawAfter < DATA_START ? DATA_START : rawAfter;
 
   let imported = 0;
   let updated = 0;

@@ -1,5 +1,5 @@
 import { db } from "@/lib/db";
-import { PLATFORMS, type Platform } from "@/lib/constants";
+import { PLATFORMS, DATA_START, type Platform } from "@/lib/constants";
 import { getPlatformFees } from "@/lib/settings";
 import {
   startOfDay,
@@ -142,9 +142,12 @@ export type DashboardData = {
 export async function getDashboardData(r: DashRange): Promise<DashboardData> {
   const feeRates = await getPlatformFees();
 
+  // Abaikan order sebelum kita start ads (DATA_START) — data lama tak dikira.
+  const floor = r.from < DATA_START ? DATA_START : r.from;
+
   const [orders, prevOrders] = await Promise.all([
     db.order.findMany({
-      where: { orderedAt: { gte: r.from, lte: r.to }, status: { in: ACTIVE_STATUSES } },
+      where: { orderedAt: { gte: floor, lte: r.to }, status: { in: ACTIVE_STATUSES } },
       include: { items: { include: { product: true } } },
     }),
     db.order.findMany({
@@ -164,7 +167,12 @@ export async function getDashboardData(r: DashRange): Promise<DashboardData> {
 
   const revenue = sumRev(orders);
   const orderCount = orders.length;
-  const profit = sumProfit(orders);
+  const grossProfit = sumProfit(orders);
+
+  // Tolak kos (iklan/tetap/lain) dalam tempoh → untung BERSIH sebenar
+  const periodExpenses = await db.expense.findMany({ where: { date: { gte: floor, lte: r.to } } });
+  const totalExpenses = periodExpenses.reduce((s, e) => s + e.amount, 0);
+  const profit = grossProfit - totalExpenses;
 
   const byPlatform = PLATFORMS.map((platform) => {
     const po = orders.filter((o) => o.platform === platform);
@@ -192,13 +200,17 @@ export async function getDashboardData(r: DashRange): Promise<DashboardData> {
   }
   const bestSellers = Array.from(sellerMap.values()).sort((a, b) => b.profit - a.profit).slice(0, 5);
 
-  // Pipeline status (semua order) + alert
-  const statusGroup = await db.order.groupBy({ by: ["status"], _count: true });
+  // Pipeline status (era-ads sahaja, dari DATA_START) + alert
+  const statusGroup = await db.order.groupBy({
+    by: ["status"],
+    _count: true,
+    where: { orderedAt: { gte: DATA_START } },
+  });
   const statusCounts: Record<string, number> = {};
   for (const s of statusGroup) statusCounts[s.status] = s._count;
 
   const returnsToHandle = await db.order.count({
-    where: { returnStatus: { in: ["requested", "approved", "returned"] } },
+    where: { returnStatus: { in: ["requested", "approved", "returned"] }, orderedAt: { gte: DATA_START } },
   });
   const supplies = await db.supply.findMany({ select: { currentStock: true, reorderLevel: true } });
   const lowStockCount = supplies.filter((s) => s.currentStock <= s.reorderLevel).length;
@@ -252,8 +264,10 @@ export type PnlData = {
 };
 
 export async function getPnlData(from: Date, to: Date): Promise<PnlData> {
+  // Abaikan order sebelum kita start ads (DATA_START).
+  const floor = from < DATA_START ? DATA_START : from;
   const orders = await db.order.findMany({
-    where: { orderedAt: { gte: from, lte: to }, status: { in: ACTIVE_STATUSES } },
+    where: { orderedAt: { gte: floor, lte: to }, status: { in: ACTIVE_STATUSES } },
     include: { items: { include: { product: true } } },
   });
 
