@@ -178,8 +178,8 @@ export function AwbOrdersTable({
     <div>
       {/* Bulk print per platform (SATU platform satu fail) */}
       {platformsWithPending.length > 0 && (
-        <div className="mb-4 rounded-xl border border-slate-200 bg-white/70 p-4">
-          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+        <div className="mb-4 rounded-xl border border-white/10 bg-white/5 p-4 backdrop-blur">
+          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">
             Print AWB pukal — setiap platform fail berasingan
           </p>
           <div className="flex flex-wrap gap-3">
@@ -188,7 +188,7 @@ export function AwbOrdersTable({
                 key={p}
                 onClick={() => printPending(p)}
                 disabled={busy}
-                className="flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                className="flex items-center gap-2 rounded-lg border border-white/15 bg-white/5 px-4 py-2 text-sm font-medium text-slate-200 hover:bg-white/10 disabled:opacity-50"
               >
                 <Printer size={15} /> Print {pendingByPlatform[p]} AWB {PLATFORM_LABELS[p]}
               </button>
@@ -199,8 +199,8 @@ export function AwbOrdersTable({
 
       {/* Toolbar bila ada order dipilih */}
       {selected.size > 0 && (
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-violet-300 bg-violet-50 px-4 py-3">
-          <div className="text-sm text-violet-900">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-violet-400/30 bg-violet-500/10 px-4 py-3 backdrop-blur">
+          <div className="text-sm text-violet-100">
             <span className="font-semibold">{selected.size} order dipilih</span>
             {Object.keys(selectedByPlatform).length > 0 && (
               <span className="ml-2 text-violet-700">
@@ -228,7 +228,7 @@ export function AwbOrdersTable({
 
       {msg && <p className="mb-3 text-sm text-emerald-600">{msg}</p>}
 
-      <div className="overflow-x-auto rounded-2xl border border-white/60 bg-white/85 shadow-sm backdrop-blur-sm">
+      <div className="glass-panel overflow-x-auto rounded-2xl">
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-slate-200 text-left text-xs uppercase tracking-wide text-slate-500">
@@ -258,7 +258,7 @@ export function AwbOrdersTable({
               const isOpen = expanded.has(o.id);
               return (
               <Fragment key={o.id}>
-              <tr className="border-b border-slate-100 last:border-0 hover:bg-slate-50">
+              <tr className="border-b border-white/5 last:border-0 hover:bg-white/5">
                 <td className="px-4 py-3">
                   <input
                     type="checkbox"
@@ -328,7 +328,7 @@ export function AwbOrdersTable({
                 </td>
               </tr>
               {isOpen && hasJourney && (
-                <tr className="bg-slate-50/80">
+                <tr className="bg-white/5">
                   <td colSpan={isStaff ? 8 : 9} className="px-4 pb-4 pt-1">
                     <Journey events={o.trackingEvents} trackingNo={o.trackingNo} courier={o.courier} />
                   </td>
