@@ -22,12 +22,13 @@ import Link from "next/link";
 
 export const dynamic = "force-dynamic";
 
+// Palet "mewah": platinum menaik untuk in-progress, hijau (good), fade (batal)
 const STATUS_DOT: Record<string, string> = {
-  pending: "bg-red-500",
-  printed: "bg-blue-500",
-  shipped: "bg-orange-500",
-  completed: "bg-emerald-500",
-  cancelled: "bg-slate-400",
+  pending: "bg-slate-500",
+  printed: "bg-slate-400",
+  shipped: "bg-slate-300",
+  completed: "bg-emerald-400",
+  cancelled: "bg-slate-700",
 };
 
 export default async function DashboardPage({
@@ -167,7 +168,7 @@ export default async function DashboardPage({
                     </span>
                     <span className="font-semibold text-slate-800">{count}</span>
                   </div>
-                  <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-100">
+                  <div className="h-1.5 w-full overflow-hidden rounded-full bg-white/10">
                     <div className={`h-full rounded-full ${STATUS_DOT[s] ?? "bg-slate-400"}`} style={{ width: `${pct}%` }} />
                   </div>
                 </div>
