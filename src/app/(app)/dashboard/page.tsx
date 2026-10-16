@@ -257,10 +257,11 @@ export default async function DashboardPage({
               Lihat semua →
             </Link>
           </div>
+          <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <tbody>
               {d.recentOrders.map((o) => (
-                <tr key={o.id} className="border-b border-slate-100 last:border-0 hover:bg-slate-50">
+                <tr key={o.id} className="border-b border-white/5 last:border-0 hover:bg-white/5">
                   <td className="px-5 py-3">
                     <p className="font-medium text-slate-800">{o.platformOrderId}</p>
                     <p className="text-xs text-slate-400">{o.buyerName ?? "-"}</p>
@@ -284,6 +285,7 @@ export default async function DashboardPage({
               )}
             </tbody>
           </table>
+          </div>
         </Card>
       </div>
     </div>
