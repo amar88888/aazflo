@@ -199,7 +199,7 @@ export default async function DashboardPage({
               </tr>
             </thead>
             <tbody>
-              {d.byPlatform.map((p) => (
+              {[...d.byPlatform].sort((a, b) => b.revenue - a.revenue || b.orders - a.orders).map((p) => (
                 <tr key={p.platform} className="border-b border-slate-100 last:border-0">
                   <td className="py-2.5">
                     <PlatformBadge platform={p.platform as Platform} size={16} />
