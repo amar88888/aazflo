@@ -22,14 +22,17 @@ import { Logo } from "@/components/logo";
 
 const NAV = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard, staff: false },
+  // — Duit & untung (fokus utama) —
+  { href: "/pnl", label: "Profit & Loss", icon: Calculator, staff: false },
+  { href: "/cashflow", label: "Cashflow COD", icon: Banknote, staff: false },
+  { href: "/ads", label: "Meta Ads", icon: Megaphone, staff: false },
+  // — Operasi —
   { href: "/orders", label: "Orders & AWB", icon: Package, staff: true },
   { href: "/returns", label: "Pulangan & Batal", icon: RotateCcw, staff: true },
   { href: "/ops", label: "Operasi Office", icon: ClipboardList, staff: true },
+  // — Pemasaran & produk —
   { href: "/live", label: "Live Sessions", icon: Radio, staff: false },
   { href: "/content", label: "Content AI", icon: Sparkles, staff: false },
-  { href: "/ads", label: "Meta Ads", icon: Megaphone, staff: false },
-  { href: "/pnl", label: "Profit & Loss", icon: Calculator, staff: false },
-  { href: "/cashflow", label: "Cashflow COD", icon: Banknote, staff: true },
   { href: "/products", label: "Produk & COGS", icon: Tag, staff: false },
   { href: "/settings", label: "Settings", icon: Settings, staff: false },
 ];
