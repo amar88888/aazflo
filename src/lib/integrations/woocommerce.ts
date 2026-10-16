@@ -112,19 +112,43 @@ export function getWooConfigFromEnv(): WooConfig | null {
 }
 
 // Semua kedai WooCommerce: maxlim dari env + kedai tambahan dari DB.
+// Kedai tambahan dari env EXTRA_WOO_STORES (JSON array) — cara senang connect
+// banyak kedai tanpa klik UI. Contoh (satu baris):
+//   EXTRA_WOO_STORES=[{"key":"facelim","name":"Facelim MY","url":"https://facelim.com","user":"EMAIL","pass":"APP_PASSWORD"}]
+function parseExtraStoresEnv(): WooStore[] {
+  const raw = process.env.EXTRA_WOO_STORES;
+  if (!raw) return [];
+  try {
+    const arr = JSON.parse(raw) as WooStore[];
+    if (!Array.isArray(arr)) return [];
+    return arr
+      .filter((s) => s && s.key && s.url && s.user && s.pass)
+      .map((s) => ({ ...s, url: s.url.replace(/\/$/, ""), name: s.name || s.key }));
+  } catch {
+    return [];
+  }
+}
+
 export async function getWooStores(): Promise<WooStore[]> {
   const stores: WooStore[] = [];
   const cfg = getWooConfigFromEnv();
   if (cfg) {
     stores.push({ key: "maxlim", name: "Maxlim", url: cfg.url, user: cfg.consumerKey, pass: cfg.consumerSecret });
   }
+  // Dari env (EXTRA_WOO_STORES)
+  for (const s of parseExtraStoresEnv()) {
+    stores.push(s);
+  }
+  // Dari DB (ditambah melalui Settings UI)
   const extra = await loadCredentials<WooStoresCreds>("woo_stores");
   for (const s of extra?.stores ?? []) {
     if (s.key && s.url && s.user && s.pass) {
       stores.push({ ...s, url: s.url.replace(/\/$/, ""), name: s.name || s.key });
     }
   }
-  return stores;
+  // Dedup ikut key (utamakan yang pertama dijumpai)
+  const seen = new Set<string>();
+  return stores.filter((s) => (seen.has(s.key) ? false : (seen.add(s.key), true)));
 }
 
 export async function fetchWooOrders(
