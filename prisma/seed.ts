@@ -7,12 +7,12 @@ const prisma = new PrismaClient();
 // wooSku = SKU di website WooCommerce (untuk padan COGS bila sync). SKU konsisten
 // MY & SG: Facelim FL01-03, Maxlim MX01-03. COGS RM10/botol (Facelim), RM10.50/botol (Maxlim).
 const PRODUCTS = [
-  { name: "Maxlim (1 botol)", sku: "MAX-1", wooSku: "MX01", cogsPerUnit: 10.5, priceTiktok: 29.0, priceShopee: 29.0 },
-  { name: "Maxlim (2 botol)", sku: "MAX-2", wooSku: "MX02", cogsPerUnit: 21.0, priceTiktok: 49.0, priceShopee: 49.0 },
-  { name: "Maxlim (3 botol)", sku: "MAX-3", wooSku: "MX03", cogsPerUnit: 31.5, priceTiktok: 69.0, priceShopee: 69.0 },
-  { name: "Facelim (1 botol)", sku: "FACE-1", wooSku: "FL01", cogsPerUnit: 10.0, priceTiktok: 25.7, priceShopee: 25.7 },
-  { name: "Facelim (2 botol)", sku: "FACE-2", wooSku: "FL02", cogsPerUnit: 20.0, priceTiktok: 45.0, priceShopee: 45.0 },
-  { name: "Facelim (3 botol)", sku: "FACE-3", wooSku: "FL03", cogsPerUnit: 30.0, priceTiktok: 65.0, priceShopee: 65.0 },
+  { name: "Maxlim (1 botol)", sku: "MAX-1", wooSku: "MX01", cogsPerUnit: 10.0, priceTiktok: 29.0, priceShopee: 29.0 },
+  { name: "Maxlim (2 botol)", sku: "MAX-2", wooSku: "MX02", cogsPerUnit: 20.0, priceTiktok: 49.0, priceShopee: 49.0 },
+  { name: "Maxlim (3 botol)", sku: "MAX-3", wooSku: "MX03", cogsPerUnit: 30.0, priceTiktok: 69.0, priceShopee: 69.0 },
+  { name: "Facelim (1 botol)", sku: "FACE-1", wooSku: "FL01", cogsPerUnit: 5.0, priceTiktok: 25.7, priceShopee: 25.7 },
+  { name: "Facelim (2 botol)", sku: "FACE-2", wooSku: "FL02", cogsPerUnit: 10.0, priceTiktok: 45.0, priceShopee: 45.0 },
+  { name: "Facelim (3 botol)", sku: "FACE-3", wooSku: "FL03", cogsPerUnit: 15.0, priceTiktok: 65.0, priceShopee: 65.0 },
   { name: "Combo Maxlim & Facelim (1 set)", sku: "CMB-1", cogsPerUnit: 15.5, priceTiktok: 48.0, priceShopee: 50.0 },
   { name: "Combo Maxlim & Facelim (2 set)", sku: "CMB-2", cogsPerUnit: 31.0, priceTiktok: 85.0, priceShopee: 85.0 },
   { name: "Toner Pads Glow Skin (1)", sku: "TPGS-1", cogsPerUnit: 3.0, priceTiktok: 10.9, priceShopee: 10.9 },

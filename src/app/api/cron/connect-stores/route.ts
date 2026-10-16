@@ -37,13 +37,14 @@ export async function POST(req: Request) {
   // 2) Kemaskini COGS + wooSku (RM10/botol). Idempotent.
   let cogsUpdated = 0;
   if (body.cogs) {
+    // Kos sebenar: Facelim RM5/botol, Maxlim RM10/botol
     const COGS: { sku: string; wooSku: string; cogs: number }[] = [
-      { sku: "FACE-1", wooSku: "FL01", cogs: 10 },
-      { sku: "FACE-2", wooSku: "FL02", cogs: 20 },
-      { sku: "FACE-3", wooSku: "FL03", cogs: 30 },
-      { sku: "MAX-1", wooSku: "MX01", cogs: 10.5 },
-      { sku: "MAX-2", wooSku: "MX02", cogs: 21 },
-      { sku: "MAX-3", wooSku: "MX03", cogs: 31.5 },
+      { sku: "FACE-1", wooSku: "FL01", cogs: 5 },
+      { sku: "FACE-2", wooSku: "FL02", cogs: 10 },
+      { sku: "FACE-3", wooSku: "FL03", cogs: 15 },
+      { sku: "MAX-1", wooSku: "MX01", cogs: 10 },
+      { sku: "MAX-2", wooSku: "MX02", cogs: 20 },
+      { sku: "MAX-3", wooSku: "MX03", cogs: 30 },
     ];
     for (const c of COGS) {
       try {

@@ -159,7 +159,7 @@ export async function getDashboardData(r: DashRange): Promise<DashboardData> {
     o.platformFee > 0 ? o.platformFee : o.total * ((feeRates[o.platform as Platform] ?? 0) / 100);
   const cogsOf = (o: { items: { quantity: number; product: { cogsPerUnit: number } | null }[] }) =>
     o.items.reduce((s, it) => s + (it.product?.cogsPerUnit ?? 0) * it.quantity, 0);
-  const profitOf = (o: (typeof orders)[number]) => o.total - feeOf(o) - cogsOf(o);
+  const profitOf = (o: (typeof orders)[number]) => o.total - feeOf(o) - cogsOf(o) - (o.shippingFee || 0);
 
   const sumRev = (a: typeof orders) => a.reduce((s, o) => s + o.total, 0);
   const sumProfit = (a: typeof orders) => a.reduce((s, o) => s + profitOf(o), 0);
@@ -254,6 +254,7 @@ export type PnlData = {
   revenue: number;
   platformFees: number;
   cogs: number;
+  shipping: number;
   adsSpend: number;
   fixedCosts: number;
   otherCosts: number;
@@ -291,18 +292,22 @@ export async function getPnlData(from: Date, to: Date): Promise<PnlData> {
     }
   }
 
+  // Kos fulfilment sebenar (NinjaVan + COD + gateway) yang disimpan masa sync
+  const shipping = orders.reduce((s, o) => s + (o.shippingFee || 0), 0);
+
   const expenses = await db.expense.findMany({ where: { date: { gte: from, lte: to } } });
   const adsSpend = expenses.filter((e) => e.type === "ads").reduce((s, e) => s + e.amount, 0);
   const fixedCosts = expenses.filter((e) => e.type === "fixed").reduce((s, e) => s + e.amount, 0);
   const otherCosts = expenses.filter((e) => e.type === "other").reduce((s, e) => s + e.amount, 0);
 
-  const grossProfit = revenue - platformFees - cogs;
+  const grossProfit = revenue - platformFees - cogs - shipping;
   const netProfit = grossProfit - adsSpend - fixedCosts - otherCosts;
 
   return {
     revenue,
     platformFees,
     cogs,
+    shipping,
     adsSpend,
     fixedCosts,
     otherCosts,
