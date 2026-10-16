@@ -66,6 +66,7 @@ export async function getCashflowData(from: Date, to: Date): Promise<StoreCashfl
   };
 
   for (const o of orders) {
+    if (o.status === "unpaid") continue; // belum bayar — bukan duit lagi
     add(o.store, o.status, o.deliveryStatus, o.returnStatus, o.total);
   }
 

@@ -13,10 +13,11 @@ export const PLATFORM_COLORS: Record<Platform, string> = {
   woocommerce: "#8b5cf6",
 };
 
-export const ORDER_STATUSES = ["pending", "printed", "shipped", "completed", "cancelled"] as const;
+export const ORDER_STATUSES = ["unpaid", "pending", "printed", "shipped", "completed", "cancelled"] as const;
 export type OrderStatus = (typeof ORDER_STATUSES)[number];
 
 export const ORDER_STATUS_LABELS: Record<OrderStatus, string> = {
+  unpaid: "Belum bayar",
   pending: "Belum print AWB",
   printed: "AWB printed",
   shipped: "Dihantar",
