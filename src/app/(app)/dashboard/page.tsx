@@ -68,14 +68,17 @@ export default async function DashboardPage({
         subtitle={`${d.periodLabel} — Revenue ${formatRM(d.revenue)} · AOV ${formatRM(d.aov)}`}
         action={
           <div className="flex flex-wrap items-center justify-start gap-2 sm:justify-end">
-            <div className="flex flex-wrap gap-1 rounded-lg border border-slate-200 bg-white p-0.5 text-sm">
+            <div className="flex flex-wrap gap-1 rounded-lg border border-white/10 bg-white/5 p-0.5 text-sm backdrop-blur">
               {DASHBOARD_PERIODS.map((p) => (
                 <Link
                   key={p.key}
                   href={`/dashboard?p=${p.key}`}
                   className={`rounded-md px-2.5 py-1.5 font-medium transition-colors ${
-                    !activeCustom && activePreset === p.key ? "bg-violet-600 text-white" : "text-slate-600 hover:bg-slate-100"
+                    !activeCustom && activePreset === p.key
+                      ? "text-white"
+                      : "text-slate-300 hover:bg-white/10"
                   }`}
+                  style={!activeCustom && activePreset === p.key ? { background: "rgb(var(--m2-rgb))" } : undefined}
                 >
                   {p.label}
                 </Link>
@@ -129,9 +132,9 @@ export default async function DashboardPage({
           {alerts.map((a, i) => {
             const Icon = a.icon;
             const cls: Record<string, string> = {
-              orange: "border-orange-300 bg-orange-50 text-orange-700 hover:bg-orange-100",
-              red: "border-red-300 bg-red-50 text-red-700 hover:bg-red-100",
-              amber: "border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100",
+              orange: "border-orange-400/30 bg-orange-500/10 text-orange-300 hover:bg-orange-500/20",
+              red: "border-rose-400/30 bg-rose-500/10 text-rose-300 hover:bg-rose-500/20",
+              amber: "border-amber-400/30 bg-amber-500/10 text-amber-300 hover:bg-amber-500/20",
             };
             return (
               <Link key={i} href={a.href} className={`flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-medium ${cls[a.color]}`}>
@@ -171,11 +174,11 @@ export default async function DashboardPage({
               );
             })}
             {d.returnsToHandle > 0 && (
-              <div className="mt-3 flex items-center justify-between rounded-lg bg-red-50 px-3 py-2 text-sm">
-                <span className="flex items-center gap-2 text-red-700">
+              <div className="mt-3 flex items-center justify-between rounded-lg bg-rose-500/10 ring-1 ring-rose-400/20 px-3 py-2 text-sm">
+                <span className="flex items-center gap-2 text-rose-300">
                   <RotateCcw size={14} /> Return perlu urus
                 </span>
-                <span className="font-semibold text-red-700">{d.returnsToHandle}</span>
+                <span className="font-semibold text-rose-300">{d.returnsToHandle}</span>
               </div>
             )}
           </div>
