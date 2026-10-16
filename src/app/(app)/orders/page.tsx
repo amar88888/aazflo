@@ -110,7 +110,7 @@ export default async function OrdersPage({
         <span className="text-slate-500">Platform:</span>
         <Link
           href={filterUrl({ platform: undefined })}
-          className={`rounded-full px-3 py-1 ${!platform ? "bg-violet-600 text-white" : "bg-white border border-slate-200 text-slate-600"}`}
+          className={`rounded-full px-3 py-1 ${!platform ? "bg-[rgb(var(--m2-rgb))] text-white" : "border border-white/10 bg-white/5 text-slate-300 hover:bg-white/10"}`}
         >
           Semua
         </Link>
@@ -118,7 +118,7 @@ export default async function OrdersPage({
           <Link
             key={p}
             href={filterUrl({ platform: p })}
-            className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 ${platform === p ? "bg-violet-600 text-white" : "bg-white border border-slate-200 text-slate-600"}`}
+            className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 ${platform === p ? "bg-[rgb(var(--m2-rgb))] text-white" : "border border-white/10 bg-white/5 text-slate-300 hover:bg-white/10"}`}
           >
             <PlatformIcon platform={p} size={14} />
             {PLATFORM_LABELS[p]}
@@ -127,7 +127,7 @@ export default async function OrdersPage({
         <span className="ml-4 text-slate-500">Status:</span>
         <Link
           href={filterUrl({ status: undefined })}
-          className={`rounded-full px-3 py-1 ${!status ? "bg-violet-600 text-white" : "bg-white border border-slate-200 text-slate-600"}`}
+          className={`rounded-full px-3 py-1 ${!status ? "bg-[rgb(var(--m2-rgb))] text-white" : "border border-white/10 bg-white/5 text-slate-300 hover:bg-white/10"}`}
         >
           Semua
         </Link>
@@ -135,7 +135,7 @@ export default async function OrdersPage({
           <Link
             key={s}
             href={filterUrl({ status: s })}
-            className={`rounded-full px-3 py-1 ${status === s ? "bg-violet-600 text-white" : "bg-white border border-slate-200 text-slate-600"}`}
+            className={`rounded-full px-3 py-1 ${status === s ? "bg-[rgb(var(--m2-rgb))] text-white" : "border border-white/10 bg-white/5 text-slate-300 hover:bg-white/10"}`}
           >
             {ORDER_STATUS_LABELS[s]}
           </Link>
@@ -148,7 +148,7 @@ export default async function OrdersPage({
           <span className="text-slate-500">Kedai:</span>
           <Link
             href={filterUrl({ store: undefined })}
-            className={`rounded-full px-3 py-1 ${!store ? "bg-violet-600 text-white" : "bg-white border border-slate-200 text-slate-600"}`}
+            className={`rounded-full px-3 py-1 ${!store ? "bg-[rgb(var(--m2-rgb))] text-white" : "border border-white/10 bg-white/5 text-slate-300 hover:bg-white/10"}`}
           >
             Semua
           </Link>
@@ -156,7 +156,7 @@ export default async function OrdersPage({
             <Link
               key={s.key}
               href={filterUrl({ store: s.key })}
-              className={`rounded-full px-3 py-1 ${store === s.key ? "bg-violet-600 text-white" : "bg-white border border-slate-200 text-slate-600"}`}
+              className={`rounded-full px-3 py-1 ${store === s.key ? "bg-[rgb(var(--m2-rgb))] text-white" : "border border-white/10 bg-white/5 text-slate-300 hover:bg-white/10"}`}
             >
               {s.name}
             </Link>
