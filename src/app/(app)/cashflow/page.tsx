@@ -107,7 +107,7 @@ export default async function CashflowPage({
       </div>
 
       {/* Nota penting */}
-      <div className="mt-4 rounded-lg border border-cyan-400/25 bg-cyan-500/10 px-4 py-3 text-sm text-cyan-100 backdrop-blur">
+      <div className="mt-4 rounded-lg border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-slate-300 backdrop-blur">
         <b>Duit Masuk</b> = parcel delivered (COD dikutip atau prepaid) — NinjaVan remit ke bank ikut kitaran mingguan (~1 minggu lepas delivered).{" "}
         <b>Perjalanan</b> = COD belum kutip. <b>Lost</b> = batal / RTO / refund.
       </div>
@@ -155,13 +155,13 @@ function StripeSection({
   return (
     <div className="mt-6">
       <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold text-slate-700">
-        <CreditCard size={16} className="text-violet-600" /> Stripe — Duit Kad
+        <CreditCard size={16} className="text-slate-300" /> Stripe — Duit Kad
       </h2>
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         {/* Dah masuk bank */}
         <Card>
           <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-slate-800">
-            <Landmark size={15} className="text-emerald-600" /> Payout ke bank — {monthLabel}
+            <Landmark size={15} className="text-emerald-400" /> Payout ke bank — {monthLabel}
           </div>
           {paidByCur.size === 0 ? (
             <p className="py-3 text-sm text-slate-400">Tiada payout tiba bulan ni.</p>
@@ -170,7 +170,7 @@ function StripeSection({
               {[...paidByCur.entries()].map(([cur, amt]) => (
                 <div key={cur} className="flex items-center justify-between">
                   <span className="text-slate-600">Dah masuk bank ({cur})</span>
-                  <span className="font-bold text-emerald-600">{fmtSen(cur, amt)}</span>
+                  <span className="font-bold text-emerald-400">{fmtSen(cur, amt)}</span>
                 </div>
               ))}
               <p className="pt-1 text-xs text-slate-400">{paid.length} payout selesai</p>
@@ -186,7 +186,7 @@ function StripeSection({
         {/* Dalam Stripe (belum payout) */}
         <Card>
           <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-slate-800">
-            <CreditCard size={15} className="text-cyan-600" /> Baki dalam Stripe
+            <CreditCard size={15} className="text-slate-300" /> Baki dalam Stripe
           </div>
           {!balance ? (
             <p className="py-3 text-sm text-slate-400">—</p>
@@ -230,15 +230,15 @@ function StoreCard({ s, label }: { s: StoreCashflow; label: string }) {
 
       {/* Bar nisbah masuk / transit / lost */}
       <div className="mb-4 flex h-2.5 overflow-hidden rounded-full bg-white/10">
-        <div className="bg-emerald-500" style={{ width: `${pMasuk}%` }} />
-        <div className="bg-cyan-400" style={{ width: `${pTransit}%` }} />
-        <div className="bg-red-400" style={{ width: `${pLost}%` }} />
+        <div className="bg-emerald-400" style={{ width: `${pMasuk}%` }} />
+        <div className="bg-slate-400" style={{ width: `${pTransit}%` }} />
+        <div className="bg-rose-500" style={{ width: `${pLost}%` }} />
       </div>
 
       <div className="space-y-2.5 text-sm">
-        <Row icon={<Banknote size={15} className="text-emerald-600" />} label="Duit masuk" n={s.masukN} value={fmt(s.currency, s.masuk)} valueClass="text-emerald-600" />
-        <Row icon={<Truck size={15} className="text-cyan-500" />} label="Dalam perjalanan" n={s.transitN} value={fmt(s.currency, s.transit)} valueClass="text-cyan-600" />
-        <Row icon={<XCircle size={15} className="text-red-500" />} label="Lost (RTO/batal)" n={s.lostN} value={fmt(s.currency, s.lost)} valueClass="text-red-500" />
+        <Row icon={<Banknote size={15} className="text-emerald-400" />} label="Duit masuk" n={s.masukN} value={fmt(s.currency, s.masuk)} valueClass="text-emerald-400" />
+        <Row icon={<Truck size={15} className="text-slate-300" />} label="Dalam perjalanan" n={s.transitN} value={fmt(s.currency, s.transit)} valueClass="text-slate-200" />
+        <Row icon={<XCircle size={15} className="text-rose-400" />} label="Lost (RTO/batal)" n={s.lostN} value={fmt(s.currency, s.lost)} valueClass="text-rose-400" />
         <div className="mt-2 flex items-center justify-between border-t border-slate-100 pt-2.5">
           <span className="flex items-center gap-2 font-semibold text-slate-700">
             <Wallet size={15} /> Jumlah aktif
