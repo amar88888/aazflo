@@ -107,7 +107,7 @@ export default async function CashflowPage({
       </div>
 
       {/* Nota penting */}
-      <div className="mt-4 rounded-lg border border-cyan-200 bg-cyan-50 px-4 py-3 text-sm text-cyan-900">
+      <div className="mt-4 rounded-lg border border-cyan-400/25 bg-cyan-500/10 px-4 py-3 text-sm text-cyan-100 backdrop-blur">
         <b>Duit Masuk</b> = parcel delivered (COD dikutip atau prepaid) — NinjaVan remit ke bank ikut kitaran mingguan (~1 minggu lepas delivered).{" "}
         <b>Perjalanan</b> = COD belum kutip. <b>Lost</b> = batal / RTO / refund.
       </div>
@@ -223,13 +223,13 @@ function StoreCard({ s, label }: { s: StoreCashflow; label: string }) {
     <Card>
       <div className="mb-3 flex items-center justify-between">
         <h3 className="text-sm font-semibold text-slate-800">{label}</h3>
-        <span className="rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-semibold text-emerald-700">
+        <span className="rounded-full bg-emerald-500/15 px-2.5 py-0.5 text-xs font-semibold text-emerald-300 ring-1 ring-emerald-400/20">
           {s.collectRate.toFixed(0)}% collect rate
         </span>
       </div>
 
       {/* Bar nisbah masuk / transit / lost */}
-      <div className="mb-4 flex h-2.5 overflow-hidden rounded-full bg-slate-100">
+      <div className="mb-4 flex h-2.5 overflow-hidden rounded-full bg-white/10">
         <div className="bg-emerald-500" style={{ width: `${pMasuk}%` }} />
         <div className="bg-cyan-400" style={{ width: `${pTransit}%` }} />
         <div className="bg-red-400" style={{ width: `${pLost}%` }} />
