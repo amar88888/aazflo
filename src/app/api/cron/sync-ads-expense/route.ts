@@ -8,9 +8,9 @@ export const dynamic = "force-dynamic";
 const AUTO_LABEL = "Meta Ads (auto)";
 
 // Auto-sync perbelanjaan iklan Meta ke jadual Expense supaya P&L tolak kos iklan secara automatik.
-// Tak perlu taip manual lagi — jalankan harian untuk "semalam", atau backfill guna &days=N.
+// Tak perlu taip manual lagi — jalankan tiap beberapa jam (hari ni + semalam), atau backfill guna &days=N.
 //
-//   GET /api/cron/sync-ads-expense?secret=XXX           → sync semalam
+//   GET /api/cron/sync-ads-expense?secret=XXX           → sync hari ni (MYT)
 //   GET /api/cron/sync-ads-expense?secret=XXX&days=30   → backfill 30 hari lepas
 //
 // Idempotent: untuk setiap hari, padam Expense auto lama → cipta semula dengan spend terkini.
@@ -27,9 +27,12 @@ export async function GET(req: Request) {
     const results: { date: string; spend: number }[] = [];
     const now = new Date();
 
-    for (let i = 1; i <= days; i++) {
-      const d = new Date(now);
-      d.setUTCDate(d.getUTCDate() - i); // i=1 => semalam
+    // Ikut tarikh Malaysia (UTC+8), TERMASUK hari ni (i=0) supaya untung "Hari Ni" tolak iklan semasa.
+    // days=2 → hari ni + semalam.
+    const myt = new Date(now.getTime() + 8 * 3600 * 1000);
+    for (let i = 0; i < days; i++) {
+      const d = new Date(myt);
+      d.setUTCDate(d.getUTCDate() - i);
       const ymd = d.toISOString().slice(0, 10);
 
       // Spend sebenar Meta untuk hari tu (jumlah semua campaign).
