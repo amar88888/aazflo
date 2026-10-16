@@ -17,9 +17,10 @@ import { PLATFORMS, PLATFORM_LABELS, PLATFORM_COLORS, type Platform } from "@/li
 import { PlatformIcon } from "@/components/platform-icon";
 import { formatRM } from "@/lib/format";
 
-// ── Palet Porsche: platinum + Guards Red ──
+// ── Palet Porsche: platinum + Guards Red (accent), hijau untuk untung ──
 const PLATINUM = "#cbd5e1";
 const GUARDS = "#e2525d";
+const PROFIT = "#34d399"; // hijau emerald — untung bersih
 const GRID = "rgba(148, 163, 184, 0.12)";
 const AXIS = "#94a3b8";
 
@@ -97,11 +98,11 @@ export function RevenueProfitChart({
             <stop offset="100%" stopColor={PLATINUM} stopOpacity={0.02} />
           </linearGradient>
           <linearGradient id="prof-grad" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor={GUARDS} stopOpacity={0.42} />
-            <stop offset="100%" stopColor={GUARDS} stopOpacity={0.02} />
+            <stop offset="0%" stopColor={PROFIT} stopOpacity={0.42} />
+            <stop offset="100%" stopColor={PROFIT} stopOpacity={0.02} />
           </linearGradient>
-          <filter id="glow-red" x="-20%" y="-20%" width="140%" height="140%">
-            <feDropShadow dx="0" dy="0" stdDeviation="3" floodColor={GUARDS} floodOpacity="0.55" />
+          <filter id="glow-prof" x="-20%" y="-20%" width="140%" height="140%">
+            <feDropShadow dx="0" dy="0" stdDeviation="3" floodColor={PROFIT} floodOpacity="0.5" />
           </filter>
           <filter id="glow-plat" x="-20%" y="-20%" width="140%" height="140%">
             <feDropShadow dx="0" dy="0" stdDeviation="2.5" floodColor={PLATINUM} floodOpacity="0.4" />
@@ -117,7 +118,7 @@ export function RevenueProfitChart({
         />
         <Legend formatter={(v) => (v === "revenue" ? "Revenue" : "Untung bersih")} iconType="circle" wrapperStyle={{ color: "#cbd5e1", fontSize: 12 }} />
         <Area type="monotone" dataKey="revenue" stroke={PLATINUM} strokeWidth={2.6} fill="url(#rev-grad)" fillOpacity={1} style={{ filter: "url(#glow-plat)" }} activeDot={{ r: 4, fill: PLATINUM, stroke: "#0b0f1e", strokeWidth: 2 }} />
-        <Area type="monotone" dataKey="profit" stroke={GUARDS} strokeWidth={2.8} fill="url(#prof-grad)" fillOpacity={1} style={{ filter: "url(#glow-red)" }} activeDot={{ r: 5, fill: GUARDS, stroke: "#0b0f1e", strokeWidth: 2 }} />
+        <Area type="monotone" dataKey="profit" stroke={PROFIT} strokeWidth={2.8} fill="url(#prof-grad)" fillOpacity={1} style={{ filter: "url(#glow-prof)" }} activeDot={{ r: 5, fill: PROFIT, stroke: "#0b0f1e", strokeWidth: 2 }} />
       </AreaChart>
     </ResponsiveContainer>
   );
