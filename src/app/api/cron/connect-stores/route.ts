@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { loadCredentials, saveCredentials } from "@/lib/credentials";
+import { sendTelegram } from "@/lib/telegram";
 
 export const dynamic = "force-dynamic";
 
@@ -16,7 +17,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: false, message: "Unauthorized" }, { status: 401 });
   }
 
-  const body = (await req.json().catch(() => ({}))) as { stores?: Store[]; cogs?: boolean };
+  const body = (await req.json().catch(() => ({}))) as { stores?: Store[]; cogs?: boolean; telegram?: { botToken?: string; chatId?: string } };
   const incoming = Array.isArray(body.stores) ? body.stores : [];
   const valid = incoming
     .filter((s) => s && s.key && s.url && s.user && s.pass)
@@ -56,5 +57,13 @@ export async function POST(req: Request) {
     }
   }
 
-  return NextResponse.json({ ok: true, storesConnected: storeKeys, cogsUpdated });
+  // 3) Sambung Telegram (alert auto-profit & laporan)
+  let telegram: string | undefined;
+  if (body.telegram?.botToken && body.telegram?.chatId) {
+    await saveCredentials("telegram", { botToken: body.telegram.botToken, chatId: String(body.telegram.chatId) });
+    const t = await sendTelegram("✅ Aazflo dah sambung ke Telegram — alert auto-profit & laporan akan masuk sini.");
+    telegram = t.ok ? "connected" : `gagal: ${t.error}`;
+  }
+
+  return NextResponse.json({ ok: true, storesConnected: storeKeys, cogsUpdated, telegram });
 }
