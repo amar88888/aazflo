@@ -105,7 +105,8 @@ export async function runOrderGuard(): Promise<{ issues: GuardIssue[]; errors: s
   // 2. Berganda: hanya yang MASIH boleh dibatalkan & betul-betul tersilap klik —
   //    sama KEDAI + telefon + jumlah, jarak < 6 jam, kedua-dua belum selesai/batal/return.
   //    (Beli silang-jenama Facelim+Maxlim, atau order lama yang dah dihantar, BUKAN berganda.)
-  const CANCELLABLE = new Set(["unpaid", "pending", "processing", "on-hold", "printed", "nv-pending-pickup"]);
+  // Hanya order yg akan DIHANTAR (dah bayar / COD disahkan). Checkout terbengkalai (unpaid/pending) bukan berganda.
+  const CANCELLABLE = new Set(["processing", "on-hold", "printed", "nv-pending-pickup"]);
   const live = all.filter(({ o }) => CANCELLABLE.has(o.status));
   const groups = new Map<string, { store: string; o: GuardOrder }[]>();
   for (const x of live) {
