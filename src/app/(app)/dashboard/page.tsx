@@ -17,7 +17,7 @@ import {
 import { PageHeader, Card, StatCard, Badge } from "@/components/ui";
 import { RevenueProfitChart, PlatformRevenueChart } from "@/components/charts";
 import { PlatformBadge } from "@/components/platform-icon";
-import { Wallet, TrendingUp, ShoppingBag, Percent, Printer, RotateCcw, PackageOpen } from "lucide-react";
+import { Wallet, TrendingUp, ShoppingBag, Percent, Printer, RotateCcw, PackageOpen, Megaphone } from "lucide-react";
 import Link from "next/link";
 
 export const dynamic = "force-dynamic";
@@ -92,7 +92,7 @@ export default async function DashboardPage({
       />
 
       {/* KPI ikut tempoh dipilih, banding tempoh sebelum */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
         <StatCard
           label={`Revenue (${d.periodLabel})`}
           value={formatRM(d.revenue)}
@@ -109,6 +109,14 @@ export default async function DashboardPage({
           accent={d.profit >= 0 ? "green" : "red"}
           delta={d.profitDeltaPct}
           deltaLabel={d.deltaLabel}
+        />
+        <StatCard
+          label={`Belanja Iklan (${d.periodLabel})`}
+          value={formatRM(d.adsSpend)}
+          sub={d.roas !== null ? `ROAS ${d.roas.toFixed(2)}×` : "Tiada belanja"}
+          icon={Megaphone}
+          tone="amber"
+          accent={d.roas !== null && d.roas < 1.65 ? "red" : "green"}
         />
         <StatCard
           label={`Order (${d.periodLabel})`}
