@@ -148,6 +148,7 @@ export type DashboardData = {
     buyerName: string | null;
     items: string;
     total: number;
+    currency: string;
     status: string;
     deliveryStatus: string;
     orderedAt: Date;
@@ -255,7 +256,8 @@ export async function getDashboardData(r: DashRange): Promise<DashboardData> {
   const supplies = await db.supply.findMany({ select: { currentStock: true, reorderLevel: true } });
   const lowStockCount = supplies.filter((s) => s.currentStock <= s.reorderLevel).length;
 
-  const recent = toMyr(await db.order.findMany({ orderBy: { orderedAt: "desc" }, take: 6, include: { items: true } }));
+  // JANGAN toMyr di sini — papar nilai asal order (S$ untuk SG, RM untuk MY).
+  const recent = await db.order.findMany({ orderBy: { orderedAt: "desc" }, take: 6, include: { items: true } });
   const recentOrders = recent.map((o) => ({
     id: o.id,
     platformOrderId: o.platformOrderId,
@@ -263,6 +265,7 @@ export async function getDashboardData(r: DashRange): Promise<DashboardData> {
     buyerName: o.buyerName,
     items: o.items.map((it) => `${it.name} ×${it.quantity}`).join(", "),
     total: o.total,
+    currency: /sg/i.test(o.store) ? "SGD" : "MYR",
     status: o.status,
     deliveryStatus: o.deliveryStatus,
     orderedAt: o.orderedAt,

@@ -61,6 +61,7 @@ export default async function OrdersPage({
       id: o.id,
       platform: o.platform,
       store: o.platform === "woocommerce" ? (wooStores.find((s) => s.key === o.store)?.name ?? o.store) : null,
+      currency: /sg/i.test(o.store) ? "SGD" : "MYR",
       platformOrderId: o.platformOrderId,
       buyerName: o.buyerName,
       items: o.items.map((it) => `${it.name} ×${it.quantity}`).join(", "),

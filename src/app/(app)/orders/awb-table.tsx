@@ -31,6 +31,7 @@ export type AwbOrder = {
   buyerName: string | null;
   items: string;
   total: number;
+  currency?: string; // "SGD" untuk kedai SG, "MYR" (default) untuk MY
   status: string;
   deliveryStatus: string;
   returnStatus: string;
@@ -285,7 +286,11 @@ export function AwbOrdersTable({
                   )}
                 </td>
                 <td className="px-4 py-3 text-slate-600">{o.items || "-"}</td>
-                {!isStaff && <td className="px-4 py-3 text-right font-medium">{formatRM(o.total)}</td>}
+                {!isStaff && (
+                  <td className="px-4 py-3 text-right font-medium">
+                    {o.currency === "SGD" ? `S$${o.total.toFixed(2)}` : formatRM(o.total)}
+                  </td>
+                )}
                 <td className="px-4 py-3">
                   <Badge color={STATUS_COLORS[o.status]}>
                     {ORDER_STATUS_LABELS[o.status as OrderStatus] ?? o.status}
