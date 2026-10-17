@@ -102,13 +102,16 @@ export async function runOrderGuard(): Promise<{ issues: GuardIssue[]; errors: s
     }
   }
 
-  // 2. Berganda: telefon + jumlah sama, kedua-dua aktif, jarak < 24 jam
-  const live = all.filter(({ o }) => ACTIVE.has(o.status) || o.status.startsWith("nv-"));
+  // 2. Berganda: hanya yang MASIH boleh dibatalkan & betul-betul tersilap klik —
+  //    sama KEDAI + telefon + jumlah, jarak < 6 jam, kedua-dua belum selesai/batal/return.
+  //    (Beli silang-jenama Facelim+Maxlim, atau order lama yang dah dihantar, BUKAN berganda.)
+  const CANCELLABLE = new Set(["unpaid", "pending", "processing", "on-hold", "printed", "nv-pending-pickup"]);
+  const live = all.filter(({ o }) => CANCELLABLE.has(o.status));
   const groups = new Map<string, { store: string; o: GuardOrder }[]>();
   for (const x of live) {
     const ph = normPhone(x.o.billing.phone);
     if (!ph) continue;
-    const k = `${ph}|${Number(x.o.total)}`;
+    const k = `${x.store}|${ph}|${Number(x.o.total)}`;
     groups.set(k, [...(groups.get(k) ?? []), x]);
   }
   for (const list of groups.values()) {
@@ -118,7 +121,7 @@ export async function runOrderGuard(): Promise<{ issues: GuardIssue[]; errors: s
       const a = list[i - 1];
       const b = list[i];
       const gapH = (new Date(b.o.date_created_gmt + "Z").getTime() - new Date(a.o.date_created_gmt + "Z").getTime()) / 3600_000;
-      if (gapH > 24) continue;
+      if (gapH > 6) continue;
       issues.push({
         kind: "berganda",
         key: `d:${a.store}:${a.o.id}:${b.store}:${b.o.id}`,
