@@ -15,6 +15,8 @@ const JOBS: Job[] = [
   { name: "iklan", due: (_h, m) => m === 10, paths: ["sync-ads-expense?days=2"] },
   { name: "sync", due: (h, m) => h % 3 === 0 && m === 35, paths: ["sync-woo", "sync-stripe?days=2"] },
   { name: "auto-profit", due: (h, m) => h % 4 === 0 && m === 6, paths: ["auto-profit?dryrun=0"] },
+  // Pengawal order (tersangkut / berganda / salah kedai) — tiap jam :20, 8 pagi–11 malam
+  { name: "pengawal-order", due: (h, m) => h >= 8 && h <= 23 && m === 20, paths: ["order-guard?send=1"] },
   {
     name: "laporan-pagi",
     due: (h, m) => h === 8 && m === 0,
