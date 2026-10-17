@@ -33,7 +33,9 @@ export type ExpenseType = (typeof EXPENSE_TYPES)[number];
 export const DATA_START = new Date("2026-10-05T00:00:00+08:00");
 
 // Order kedai SG (facelimsg, maxlimsg) disimpan dalam SGD — tukar ke RM bila kira untung.
-export const SGD_TO_MYR = 3.5;
+// Kadar sebenar ~3.18 (Okt 2026, sumber Google). Guna 3.15 konservatif supaya kira
+// selepas tolak fee remittance bank (~1%) — elak lebih-kira untung SG.
+export const SGD_TO_MYR = 3.15;
 
 export const EXPENSE_TYPE_LABELS: Record<ExpenseType, string> = {
   ads: "Iklan (Ads)",
