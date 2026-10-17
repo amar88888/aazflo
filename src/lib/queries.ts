@@ -126,6 +126,8 @@ export type DashboardData = {
   orders: number;
   aov: number;
   marginPct: number;
+  adsSpend: number;
+  roas: number | null;
   revenueDeltaPct: number | null;
   profitDeltaPct: number | null;
   ordersDeltaPct: number | null;
@@ -188,6 +190,8 @@ export async function getDashboardData(r: DashRange): Promise<DashboardData> {
   const periodExpenses = await db.expense.findMany({ where: { date: { gte: floor, lte: r.to } } });
   const totalExpenses = periodExpenses.reduce((s, e) => s + e.amount, 0);
   const profit = grossProfit - totalExpenses;
+  const adsSpend = periodExpenses.filter((e) => e.type === "ads").reduce((s, e) => s + e.amount, 0);
+  const roas = adsSpend > 0 ? revenue / adsSpend : null;
 
   const byPlatform = PLATFORMS.map((platform) => {
     const po = orders.filter((o) => o.platform === platform);
@@ -272,6 +276,8 @@ export async function getDashboardData(r: DashRange): Promise<DashboardData> {
     orders: orderCount,
     aov: orderCount > 0 ? revenue / orderCount : 0,
     marginPct: revenue > 0 ? (profit / revenue) * 100 : 0,
+    adsSpend,
+    roas,
     revenueDeltaPct: delta(revenue, sumRev(prevOrders)),
     profitDeltaPct: delta(profit, sumProfit(prevOrders)),
     ordersDeltaPct: delta(orderCount, prevOrders.length),
