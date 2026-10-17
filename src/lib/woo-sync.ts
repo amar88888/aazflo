@@ -1,4 +1,5 @@
 import { db } from "@/lib/db";
+import { SGD_TO_MYR } from "@/lib/constants";
 import {
   type WooOrder,
   mapWooStatus,
@@ -33,8 +34,9 @@ const PRINTED_PLUS = new Set(["printed", "shipped", "completed"]);
 // Kos fulfilment SEBENAR (bukan caj customer): NinjaVan + gateway.
 // MY: COD RM8, prepaid NinjaVan RM5 + Billplz RM1 = RM6. SG: COD RM25, prepaid RM17.
 // Disimpan dalam Order.shippingFee (caj customer = free, jadi field ni dipakai utk kos kita).
-function fulfilCost(storeKey: string, paymentMethod: string): number {
-  const isSg = /sg/i.test(storeKey);
+function fulfilCost(storeKey: string, paymentMethod: string, currency: string): number {
+  // Order MYR di kedai SG (pelanggan Malaysia) = hantar dalam MY → kos MY.
+  const isSg = /sg/i.test(storeKey) && currency !== "MYR";
   const isCod = (paymentMethod || "").toLowerCase() === "cod";
   if (isSg) return isCod ? 25 : 17;
   return isCod ? 8 : 6;
@@ -46,7 +48,12 @@ function fulfilCost(storeKey: string, paymentMethod: string): number {
 export async function upsertWooOrder(wo: WooOrder, storeKey = "maxlim"): Promise<"imported" | "updated"> {
   const platformOrderId = String(wo.id);
   const buyerName = `${wo.billing.first_name} ${wo.billing.last_name}`.trim() || null;
-  const ship = fulfilCost(storeKey, (wo as { payment_method?: string }).payment_method ?? "");
+  const currency = ((wo as { currency?: string }).currency || "").toUpperCase();
+  const ship = fulfilCost(storeKey, (wo as { payment_method?: string }).payment_method ?? "", currency);
+  // Order kedai SG disimpan dalam SGD (dashboard darab SGD_TO_MYR). Kalau order tu sebenarnya MYR
+  // (pelanggan Malaysia beli di kedai SG), tukar ke unit SGD supaya bila didarab balik = RM sebenar.
+  const fx = /sg/i.test(storeKey) && currency === "MYR" ? 1 / SGD_TO_MYR : 1;
+  const money = (v: unknown) => (Number(v) || 0) * fx;
   const createdGmt = (wo as { date_created_gmt?: string }).date_created_gmt;
   const orderedAt = createdGmt ? new Date(createdGmt + "Z") : new Date(wo.date_created);
   const mapped = mapWooStatus(wo.status);
@@ -73,7 +80,7 @@ export async function upsertWooOrder(wo: WooOrder, storeKey = "maxlim"): Promise
       sku: li.sku || null,
       name: li.name,
       quantity: li.quantity,
-      unitPrice: Number(li.price) || 0,
+      unitPrice: money(li.price),
       productId,
     });
   }
@@ -89,7 +96,7 @@ export async function upsertWooOrder(wo: WooOrder, storeKey = "maxlim"): Promise
       where: { id: existing.id },
       data: {
         status,
-        total: Number(wo.total) || 0,
+        total: money(wo.total),
         shippingFee: ship,
         orderedAt,
         trackingNo: tracking ?? existing.trackingNo,
@@ -116,7 +123,7 @@ export async function upsertWooOrder(wo: WooOrder, storeKey = "maxlim"): Promise
       platformOrderId,
       status,
       buyerName,
-      total: Number(wo.total) || 0,
+      total: money(wo.total),
       shippingFee: ship,
       orderedAt,
       source: "api",
