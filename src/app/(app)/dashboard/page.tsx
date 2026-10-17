@@ -190,27 +190,30 @@ export default async function DashboardPage({
       {/* Platform profit + Best sellers by profit */}
       <div className="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-2">
         <Card>
-          <h2 className="mb-4 text-sm font-semibold text-slate-700">Untung Ikut Platform</h2>
+          <h2 className="mb-4 text-sm font-semibold text-slate-700">Order &amp; Untung Ikut Kedai</h2>
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-slate-200 text-left text-xs uppercase tracking-wide text-slate-500">
-                <th className="pb-2">Platform</th>
+                <th className="pb-2">Kedai</th>
                 <th className="pb-2 text-right">Order</th>
                 <th className="pb-2 text-right">Revenue</th>
                 <th className="pb-2 text-right">Untung</th>
               </tr>
             </thead>
             <tbody>
-              {[...d.byPlatform].sort((a, b) => b.revenue - a.revenue || b.orders - a.orders).map((p) => (
-                <tr key={p.platform} className="border-b border-slate-100 last:border-0">
-                  <td className="py-2.5">
-                    <PlatformBadge platform={p.platform as Platform} size={16} />
-                  </td>
-                  <td className="py-2.5 text-right">{p.orders}</td>
-                  <td className="py-2.5 text-right">{formatRM(p.revenue)}</td>
-                  <td className="py-2.5 text-right font-semibold text-emerald-600">{formatRM(p.profit)}</td>
+              {d.byStore.map((s) => (
+                <tr key={s.store} className="border-b border-slate-100 last:border-0">
+                  <td className="py-2.5 font-medium text-slate-800">{s.label}</td>
+                  <td className="py-2.5 text-right font-semibold">{s.orders}</td>
+                  <td className="py-2.5 text-right">{formatRM(s.revenue)}</td>
+                  <td className="py-2.5 text-right font-semibold text-emerald-600">{formatRM(s.profit)}</td>
                 </tr>
               ))}
+              {d.byStore.length === 0 && (
+                <tr>
+                  <td colSpan={4} className="py-6 text-center text-slate-400">Belum ada order</td>
+                </tr>
+              )}
             </tbody>
           </table>
         </Card>

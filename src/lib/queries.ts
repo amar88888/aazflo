@@ -135,6 +135,7 @@ export type DashboardData = {
   lowStockCount: number;
   // Breakdown
   byPlatform: { platform: Platform; revenue: number; orders: number; profit: number }[];
+  byStore: { store: string; label: string; revenue: number; orders: number; profit: number }[];
   statusCounts: Record<string, number>;
   dailyTrend: { date: string; revenue: number; profit: number }[];
   bestSellers: { name: string; sku: string; quantity: number; revenue: number; profit: number }[];
@@ -198,6 +199,27 @@ export async function getDashboardData(r: DashRange): Promise<DashboardData> {
     };
   });
 
+  // Pecahan ikut KEDAI (facelim / facelimsg / maxlim / maxlimsg) — semua platform "woocommerce"
+  // jadi satu "Website", tapi user nak nampak tiap kedai berasingan.
+  const STORE_LABELS: Record<string, string> = {
+    facelim: "Facelim MY",
+    facelimsg: "Facelim SG",
+    maxlim: "Maxlim MY",
+    maxlimsg: "Maxlim SG",
+  };
+  const storeMap = new Map<string, { revenue: number; orders: number; profit: number }>();
+  for (const o of orders) {
+    const k = o.store || "lain";
+    const cur = storeMap.get(k) ?? { revenue: 0, orders: 0, profit: 0 };
+    cur.revenue += o.total;
+    cur.orders += 1;
+    cur.profit += profitOf(o);
+    storeMap.set(k, cur);
+  }
+  const byStore = Array.from(storeMap.entries())
+    .map(([store, v]) => ({ store, label: STORE_LABELS[store] ?? store, ...v }))
+    .sort((a, b) => b.revenue - a.revenue);
+
   const dailyTrend = buildTrend(orders, profitOf, r);
 
   // Best sellers ikut UNTUNG (bukan sekadar revenue)
@@ -257,6 +279,7 @@ export async function getDashboardData(r: DashRange): Promise<DashboardData> {
     returnsToHandle,
     lowStockCount,
     byPlatform,
+    byStore,
     statusCounts,
     dailyTrend,
     bestSellers,
