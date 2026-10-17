@@ -281,7 +281,9 @@ export default async function DashboardPage({
                   <td className="px-5 py-3">
                     <PlatformBadge platform={o.platform as Platform} size={16} />
                   </td>
-                  <td className="px-5 py-3 text-right font-medium">{formatRM(o.total)}</td>
+                  <td className="px-5 py-3 text-right font-medium">
+                    {o.currency === "SGD" ? `S$${o.total.toFixed(2)}` : formatRM(o.total)}
+                  </td>
                   <td className="px-5 py-3">
                     <Badge color={o.status === "completed" ? "green" : o.status === "pending" ? "red" : "blue"}>
                       {ORDER_STATUS_LABELS[o.status as OrderStatus] ?? o.status}
