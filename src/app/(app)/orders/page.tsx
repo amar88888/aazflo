@@ -4,6 +4,7 @@ import {
   PLATFORM_LABELS,
   ORDER_STATUSES,
   ORDER_STATUS_LABELS,
+  DATA_START,
   type Platform,
   type OrderStatus,
 } from "@/lib/constants";
@@ -42,7 +43,7 @@ export default async function OrdersPage({
 
   const pendingCounts = await db.order.groupBy({
     by: ["platform"],
-    where: { status: "pending" },
+    where: { status: "pending", orderedAt: { gte: DATA_START } },
     _count: true,
   });
   const pendingByPlatform: Record<string, number> = {};
