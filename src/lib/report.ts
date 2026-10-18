@@ -1,7 +1,7 @@
 import { db } from "@/lib/db";
 import { getPnlData } from "@/lib/queries";
 import { formatRM } from "@/lib/format";
-import { DATA_START, SGD_TO_MYR } from "@/lib/constants";
+import { DATA_START, SGD_TO_MYR, PROFIT_TARGET } from "@/lib/constants";
 import { subDays, format } from "date-fns";
 import { startOfDayMY as startOfDay, endOfDayMY as endOfDay, startOfMonthMY as startOfMonth, toMytWall } from "@/lib/myt";
 
@@ -57,6 +57,11 @@ export async function buildDailyReport(opts: { yesterday?: boolean } = {}): Prom
   L.push(`🗓 ${format(toMytWall(day), "EEEE, dd MMM yyyy")}${opts.yesterday ? " (semalam)" : ""}`);
   L.push("");
   L.push(`<b>${untung >= 0 ? "🟢" : "🔴"} Untung bersih: ${formatRM(untung)}</b>`);
+  // 🎯 Target harian
+  if (untung >= PROFIT_TARGET.goal) L.push(`🏆 Target ${formatRM(PROFIT_TARGET.goal)} TERCAPAI!`);
+  else if (untung >= PROFIT_TARGET.floor)
+    L.push(`✅ Lepas minimum ${formatRM(PROFIT_TARGET.floor)} · ${formatRM(PROFIT_TARGET.goal - untung)} lagi ke sasaran ${formatRM(PROFIT_TARGET.goal)}`);
+  else L.push(`🎯 ${formatRM(PROFIT_TARGET.floor - untung)} lagi untuk cecah minimum ${formatRM(PROFIT_TARGET.floor)}`);
   L.push(`Jualan ${formatRM(pnlDay.revenue)} · ${dayOrders.length} order`);
   L.push(`Iklan ${formatRM(pnlDay.adsSpend)}${roas > 0 ? ` · ROAS ${roas.toFixed(2)}x` : ""}`);
   L.push(`Kos barang ${formatRM(pnlDay.cogs)} · Pos/COD ${formatRM(pnlDay.shipping)}`);
