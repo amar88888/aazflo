@@ -11,6 +11,7 @@ import {
   PLATFORM_LABELS,
   ORDER_STATUSES,
   ORDER_STATUS_LABELS,
+  PROFIT_TARGET,
   type Platform,
   type OrderStatus,
 } from "@/lib/constants";
@@ -135,6 +136,38 @@ export default async function DashboardPage({
           accent={d.marginPct >= 0 ? "green" : "red"}
         />
       </div>
+
+      {/* 🎯 Target untung — kejar sasaran harian */}
+      {(() => {
+        const tFloor = PROFIT_TARGET.floor * d.periodDays;
+        const tGoal = PROFIT_TARGET.goal * d.periodDays;
+        const pct = Math.max(0, Math.min(100, (d.profit / tGoal) * 100));
+        const floorMark = (tFloor / tGoal) * 100;
+        const hit = d.profit >= tGoal ? "goal" : d.profit >= tFloor ? "floor" : "below";
+        const barCol = hit === "below" ? "bg-rose-500" : hit === "floor" ? "bg-amber-400" : "bg-emerald-500";
+        return (
+          <Card className="mt-4">
+            <div className="mb-2 flex items-center justify-between">
+              <h2 className="text-sm font-semibold text-slate-700">🎯 Target Untung ({d.periodLabel})</h2>
+              <span className={`text-sm font-bold ${hit === "below" ? "text-rose-400" : "text-emerald-400"}`}>
+                {formatRM(d.profit)} / {formatRM(tGoal)}
+              </span>
+            </div>
+            <div className="relative h-3 w-full overflow-hidden rounded-full bg-white/10">
+              <div className={`h-full rounded-full ${barCol}`} style={{ width: `${pct}%` }} />
+              <div className="absolute top-0 h-full w-0.5 bg-white/70" style={{ left: `${floorMark}%` }} />
+            </div>
+            <p className="mt-2 text-xs text-slate-400">
+              {hit === "goal"
+                ? "🏆 Target tercapai! Terbaik bro!"
+                : hit === "floor"
+                  ? `✅ Dah lepas minimum. ${formatRM(tGoal - d.profit)} lagi untuk cecah sasaran ${formatRM(tGoal)}.`
+                  : `🔴 ${formatRM(tFloor - d.profit)} lagi untuk cecah minimum ${formatRM(tFloor)}.`}{" "}
+              <span className="text-slate-500">(garis putih = minimum {formatRM(tFloor)})</span>
+            </p>
+          </Card>
+        );
+      })()}
 
       {/* Nota: Aazflo = angka sebenar (order Woo). Meta Ads Manager tunjuk lebih (attribution). */}
       <p className="mt-3 flex items-center gap-1.5 text-xs text-slate-400">

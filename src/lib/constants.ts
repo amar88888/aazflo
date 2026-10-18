@@ -32,6 +32,9 @@ export type ExpenseType = (typeof EXPENSE_TYPES)[number];
 // kita cuma pantau era ads, bukan order lama. Tukar di sini kalau nak reset titik mula.
 export const DATA_START = new Date("2026-10-05T00:00:00+08:00");
 
+// 🎯 Target untung BERSIH sehari (RM). Floor = minimum, Goal = sasaran tinggi.
+export const PROFIT_TARGET = { floor: 1100, goal: 2000 };
+
 // Order kedai SG (facelimsg, maxlimsg) disimpan dalam SGD — tukar ke RM bila kira untung.
 // Kadar sebenar ~3.18 (Okt 2026, sumber Google). Guna 3.15 konservatif supaya kira
 // selepas tolak fee remittance bank (~1%) — elak lebih-kira untung SG.

@@ -129,6 +129,7 @@ export type DashboardData = {
   marginPct: number;
   adsSpend: number;
   roas: number | null;
+  periodDays: number;
   revenueDeltaPct: number | null;
   profitDeltaPct: number | null;
   ordersDeltaPct: number | null;
@@ -282,6 +283,7 @@ export async function getDashboardData(r: DashRange): Promise<DashboardData> {
     marginPct: revenue > 0 ? (profit / revenue) * 100 : 0,
     adsSpend,
     roas,
+    periodDays: Math.max(1, differenceInCalendarDays(r.to, floor) + 1),
     revenueDeltaPct: delta(revenue, sumRev(prevOrders)),
     profitDeltaPct: delta(profit, sumProfit(prevOrders)),
     ordersDeltaPct: delta(orderCount, prevOrders.length),
