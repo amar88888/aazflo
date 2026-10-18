@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { startOfDay, endOfDay } from "date-fns";
+import { startOfDayMY as startOfDay, endOfDayMY as endOfDay } from "@/lib/myt";
 
 // Diagnostik sementara: apa Aazflo kira utk "hari ni" per kedai (orderedAt + status).
 export async function GET(req: Request) {
