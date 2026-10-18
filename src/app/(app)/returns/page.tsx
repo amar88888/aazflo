@@ -1,6 +1,7 @@
 import { db } from "@/lib/db";
 import { PageHeader, Card, StatCard } from "@/components/ui";
 import { formatRM, formatPercent } from "@/lib/format";
+import { DATA_START } from "@/lib/constants";
 import { RecordReturnForm } from "./record-return-form";
 import { ReturnsTable, type ReturnRow } from "./returns-table";
 import { RotateCcw, XCircle, Coins, Percent } from "lucide-react";
@@ -8,16 +9,18 @@ import { RotateCcw, XCircle, Coins, Percent } from "lucide-react";
 export const dynamic = "force-dynamic";
 
 export default async function ReturnsPage() {
+  // Hanya era-ads (dari DATA_START 5 Okt) — abaikan order lama supaya kadar return/batal tepat.
   const [orders, totalOrders] = await Promise.all([
     db.order.findMany({
       where: {
+        orderedAt: { gte: DATA_START },
         OR: [{ returnStatus: { not: "none" } }, { deliveryStatus: "returned" }, { status: "cancelled" }],
       },
       include: { items: true },
       orderBy: { orderedAt: "desc" },
       take: 300,
     }),
-    db.order.count(),
+    db.order.count({ where: { orderedAt: { gte: DATA_START } } }),
   ]);
 
   const rows: ReturnRow[] = orders.map((o) => {
