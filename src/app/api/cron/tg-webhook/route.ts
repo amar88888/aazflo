@@ -35,10 +35,27 @@ export async function POST(req: Request) {
   const now = new Date();
   const ds = startOfDayMY(now);
   const de = endOfDayMY(now);
-  const [pnl, orderCount] = await Promise.all([
+  const [pnl, byStore] = await Promise.all([
     getPnlData(ds, de),
-    db.order.count({ where: { orderedAt: { gte: ds, lte: de }, status: { in: ACTIVE } } }),
+    db.order.groupBy({
+      by: ["store"],
+      where: { orderedAt: { gte: ds, lte: de }, status: { in: ACTIVE } },
+      _count: true,
+    }),
   ]);
+  const STORE_LABELS: Record<string, string> = {
+    facelim: "Facelim MY",
+    facelimsg: "Facelim SG",
+    maxlim: "Maxlim MY",
+    maxlimsg: "Maxlim SG",
+    eviorofficial: "EVIOR Official",
+  };
+  const orderCount = byStore.reduce((s, x) => s + x._count, 0);
+  const storeLines = byStore
+    .map((x) => ({ label: STORE_LABELS[x.store] ?? x.store, n: x._count }))
+    .sort((a, b) => b.n - a.n)
+    .map((x) => `• ${x.label}: ${x.n}`)
+    .join("\n");
   const p = pnl.netProfit;
   const roas = pnl.adsSpend > 0 ? pnl.revenue / pnl.adsSpend : 0;
   const floor = PROFIT_TARGET.floor;
@@ -57,7 +74,8 @@ export async function POST(req: Request) {
     `Jualan ${formatRM(pnl.revenue)} · ${orderCount} order\n` +
     `Iklan ${formatRM(pnl.adsSpend)}${roas > 0 ? ` · ROAS ${roas.toFixed(2)}x` : ""}\n` +
     `Kos barang ${formatRM(pnl.cogs)} · Pos ${formatRM(pnl.shipping)}\n` +
-    `${line}`;
+    (storeLines ? `\n<b>🏪 Order ikut kedai</b>\n${storeLines}\n` : "") +
+    `\n${line}`;
 
   await reply(fromChat, botToken, text);
   return NextResponse.json({ ok: true });
