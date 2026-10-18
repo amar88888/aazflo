@@ -13,7 +13,9 @@ type Job = { name: string; due: (h: number, m: number) => boolean; paths: string
 
 const JOBS: Job[] = [
   { name: "iklan", due: (_h, m) => m === 10, paths: ["sync-ads-expense?days=2"] },
-  { name: "sync", due: (h, m) => h % 3 === 0 && m === 35, paths: ["sync-woo", "sync-stripe?days=2"] },
+  // sync-woo tiap JAM (backup kalau webhook real-time terlepas) + stripe tiap 3 jam
+  { name: "sync", due: (_h, m) => m === 35, paths: ["sync-woo"] },
+  { name: "sync-stripe", due: (h, m) => h % 3 === 0 && m === 40, paths: ["sync-stripe?days=2"] },
   { name: "auto-profit", due: (h, m) => h % 4 === 0 && m === 6, paths: ["auto-profit?dryrun=0"] },
   // Hidupkan ad menang Facelim MY tepat 00:01 MYT (sekali, date-guard dalam endpoint)
   { name: "facelim-my-on", due: (h, m) => h === 0 && m === 1, paths: ["facelim-my-on"] },
