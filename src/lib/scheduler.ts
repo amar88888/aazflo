@@ -20,6 +20,8 @@ const JOBS: Job[] = [
   // Hidupkan ad menang Facelim MY tepat 00:01 MYT (sekali, date-guard dalam endpoint)
   { name: "facelim-my-on", due: (h, m) => h === 0 && m === 1, paths: ["facelim-my-on"] },
   // Pengawal order (tersangkut / berganda / salah kedai) — tiap jam :20, 8 pagi–11 malam
+  // Penjaga delivery iklan (adset aktif tapi 0 ad = silent death) — tiap jam :25
+  { name: "delivery-watchdog", due: (_h, m) => m === 25, paths: ["delivery-watchdog?send=1"] },
   { name: "pengawal-order", due: (h, m) => h >= 8 && h <= 23 && m === 20, paths: ["order-guard?send=1"] },
   {
     name: "laporan-pagi",
