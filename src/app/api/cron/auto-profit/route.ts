@@ -9,7 +9,7 @@ const GRAPH = "https://graph.facebook.com/v21.0";
 // ── Peraturan (deterministik, bukan agak-agak) ──
 // Meta over-report ~1.8x; breakeven sebenar ~1.65x → breakeven Meta-ROAS ~3.0x.
 const ROAS_PAUSE = 2.5;      // bawah ni (selepas belanja cukup) = rugi → pause
-const ROAS_SCALE = 5.0;      // atas ni (sebenar ~2.8x) = kuat → boleh scale
+const ROAS_SCALE = 3.8;      // atas ni (Meta ~3.8 = sebenar ~2.1x, untung kukuh) = scale winner lebih agresif
 const SPEND_PAUSE_3D = 100;  // RM belanja 3 hari sebelum layak dinilai utk pause
 const SPEND_TODAY_DEAD = 50; // RM belanja hari ni + 0 jualan = pause
 const SPEND_SCALE_3D = 300;  // RM belanja 3 hari (volume terbukti) sebelum scale
