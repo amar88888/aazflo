@@ -10,6 +10,11 @@ const PRODUCTS = [
   { sku: "MX01", name: "MAXLIM PAKEJ 1 BOTOL", cogs: 10, price: 49 },
   { sku: "MX02", name: "MAXLIM PAKEJ 2 BOTOL", cogs: 20, price: 69 },
   { sku: "MX03", name: "MAXLIM PAKEJ 3 BOTOL", cogs: 30, price: 99 },
+  // eviorofficial.com (kedai rasmi IG) — produk single-SKU
+  { sku: "ev-facelim", name: "EVIOR Facelim Ampoule 15ml", cogs: 5, price: 49 },
+  { sku: "ev-maxlim", name: "EVIOR Maxlim Ampoule 15ml", cogs: 10, price: 49 },
+  { sku: "ev-tonerpads", name: "EVIOR Toner Pads (50 keping)", cogs: 4, price: 25 },
+  { sku: "ev-lotionputih", name: "EVIOR Lotion Putih SPF50 150ml", cogs: 4, price: 27 },
 ];
 
 export async function GET(req: Request) {
