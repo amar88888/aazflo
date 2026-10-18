@@ -4,7 +4,8 @@ import { formatRM, formatDate, formatPercent } from "@/lib/format";
 import { EXPENSE_TYPE_LABELS, PLATFORM_LABELS, type ExpenseType, type Platform } from "@/lib/constants";
 import { PageHeader, Card, StatCard, Badge } from "@/components/ui";
 import { addExpenseAction, deleteExpenseAction } from "./actions";
-import { startOfMonth, endOfMonth, format } from "date-fns";
+import { format } from "date-fns";
+import { startOfMonthMY as startOfMonth, endOfMonthMY as endOfMonth } from "@/lib/myt";
 import Link from "next/link";
 import { Trash2, Wallet, TrendingUp, Banknote, Percent } from "lucide-react";
 

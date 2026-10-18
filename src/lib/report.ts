@@ -2,7 +2,8 @@ import { db } from "@/lib/db";
 import { getPnlData } from "@/lib/queries";
 import { formatRM } from "@/lib/format";
 import { DATA_START, SGD_TO_MYR } from "@/lib/constants";
-import { startOfDay, endOfDay, startOfMonth, subDays, format } from "date-fns";
+import { subDays, format } from "date-fns";
+import { startOfDayMY as startOfDay, endOfDayMY as endOfDay, startOfMonthMY as startOfMonth, toMytWall } from "@/lib/myt";
 
 const ACTIVE = ["pending", "printed", "shipped", "completed"];
 
@@ -53,7 +54,7 @@ export async function buildDailyReport(opts: { yesterday?: boolean } = {}): Prom
   const untung = pnlDay.netProfit;
   const L: string[] = [];
   L.push(`<b>${opts.yesterday ? "☀️ Laporan Pagi" : "📊 Laporan Harian"} Aazflo</b>`);
-  L.push(`🗓 ${format(day, "EEEE, dd MMM yyyy")}${opts.yesterday ? " (semalam)" : ""}`);
+  L.push(`🗓 ${format(toMytWall(day), "EEEE, dd MMM yyyy")}${opts.yesterday ? " (semalam)" : ""}`);
   L.push("");
   L.push(`<b>${untung >= 0 ? "🟢" : "🔴"} Untung bersih: ${formatRM(untung)}</b>`);
   L.push(`Jualan ${formatRM(pnlDay.revenue)} · ${dayOrders.length} order`);

@@ -13,20 +13,17 @@ function toMyr<T extends { store: string; total: number; items?: { unitPrice: nu
   return list;
 }
 import { getPlatformFees } from "@/lib/settings";
+import { subDays, addDays, subMonths, subYears, differenceInCalendarDays, format } from "date-fns";
+// Sempadan tarikh ikut MYT (server jalan UTC) — ganti startOfDay/endOfDay date-fns.
 import {
-  startOfDay,
-  endOfDay,
-  subDays,
-  addDays,
-  startOfMonth,
-  endOfMonth,
-  subMonths,
-  startOfYear,
-  endOfYear,
-  subYears,
-  differenceInCalendarDays,
-  format,
-} from "date-fns";
+  startOfDayMY as startOfDay,
+  endOfDayMY as endOfDay,
+  startOfMonthMY as startOfMonth,
+  endOfMonthMY as endOfMonth,
+  startOfYearMY as startOfYear,
+  endOfYearMY as endOfYear,
+  toMytWall,
+} from "@/lib/myt";
 
 const ACTIVE_STATUSES = ["pending", "printed", "shipped", "completed"];
 
@@ -105,9 +102,13 @@ function buildTrend<T extends { orderedAt: Date; total: number }>(orders: T[], p
     for (let m = 0; m < 12; m++) map.set(format(new Date(r.from.getFullYear(), m, 1), "MMM"), { revenue: 0, profit: 0 });
   } else {
     const days = Math.min(differenceInCalendarDays(r.to, r.from) + 1, 92);
-    for (let i = 0; i < days; i++) map.set(format(addDays(startOfDay(r.from), i), "dd/MM"), { revenue: 0, profit: 0 });
+    for (let i = 0; i < days; i++) map.set(format(toMytWall(addDays(startOfDay(r.from), i)), "dd/MM"), { revenue: 0, profit: 0 });
   }
-  const keyOf = (dt: Date) => (r.gran === "hour" ? format(dt, "HH:00") : r.gran === "month" ? format(dt, "MMM") : format(dt, "dd/MM"));
+  // Label ikut MYT (shift +8 sebab server UTC)
+  const keyOf = (dt: Date) => {
+    const m = toMytWall(dt);
+    return r.gran === "hour" ? format(m, "HH:00") : r.gran === "month" ? format(m, "MMM") : format(m, "dd/MM");
+  };
   for (const o of orders) {
     const e = map.get(keyOf(o.orderedAt));
     if (e) {
