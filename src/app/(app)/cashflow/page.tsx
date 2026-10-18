@@ -2,7 +2,8 @@ import { getCashflowData, type StoreCashflow } from "@/lib/cashflow";
 import { fetchStripeBalance, fetchStripePayouts, type StripePayout, type StripeBalance } from "@/lib/integrations/stripe";
 import { formatRM } from "@/lib/format";
 import { PageHeader, Card, StatCard } from "@/components/ui";
-import { startOfMonth, endOfMonth, format } from "date-fns";
+import { format } from "date-fns";
+import { startOfMonthMY as startOfMonth, endOfMonthMY as endOfMonth } from "@/lib/myt";
 import Link from "next/link";
 import { Banknote, Truck, XCircle, Wallet, CreditCard, Landmark } from "lucide-react";
 

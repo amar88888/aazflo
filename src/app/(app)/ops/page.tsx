@@ -18,7 +18,8 @@ import {
   addCashTxnAction,
   deleteCashTxnAction,
 } from "./actions";
-import { startOfDay, endOfDay, format } from "date-fns";
+import { format } from "date-fns";
+import { startOfDayMY as startOfDay, endOfDayMY as endOfDay } from "@/lib/myt";
 import { Users, Wallet, PackageOpen, ReceiptText, Trash2, FileText, Minus, Plus } from "lucide-react";
 
 export const dynamic = "force-dynamic";
