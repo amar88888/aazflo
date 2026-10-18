@@ -136,6 +136,12 @@ export default async function DashboardPage({
         />
       </div>
 
+      {/* Nota: Aazflo = angka sebenar (order Woo). Meta Ads Manager tunjuk lebih (attribution). */}
+      <p className="mt-3 flex items-center gap-1.5 text-xs text-slate-400">
+        <span className="inline-block h-1.5 w-1.5 rounded-full bg-emerald-400" />
+        Angka ni <b className="font-semibold text-slate-300">SEBENAR</b> dari order Woo. Meta Ads Manager akan tunjuk lebih (attribution) — untuk untung, percaya sini.
+      </p>
+
       {/* Alert strip — actionable */}
       {alerts.length > 0 && (
         <div className="mt-4 flex flex-wrap gap-3">
