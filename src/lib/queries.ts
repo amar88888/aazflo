@@ -139,7 +139,7 @@ export type DashboardData = {
   lowStockCount: number;
   // Breakdown
   byPlatform: { platform: Platform; revenue: number; orders: number; profit: number }[];
-  byStore: { store: string; label: string; revenue: number; orders: number; profit: number }[];
+  byStore: { store: string; label: string; revenue: number; orders: number; profit: number; adsSpend: number; netProfit: number }[];
   statusCounts: Record<string, number>;
   dailyTrend: { date: string; revenue: number; profit: number }[];
   bestSellers: { name: string; sku: string; quantity: number; revenue: number; profit: number }[];
@@ -214,17 +214,27 @@ export async function getDashboardData(r: DashRange): Promise<DashboardData> {
     maxlim: "Maxlim MY",
     maxlimsg: "Maxlim SG",
   };
+  // Belanja iklan per kedai (dari Expense berlabel "Meta Ads (auto) [store]").
+  const adsByStore = new Map<string, number>();
+  for (const e of periodExpenses) {
+    if (e.type !== "ads") continue;
+    const m = /\[([a-z]+)\]/i.exec(e.label);
+    if (m) adsByStore.set(m[1], (adsByStore.get(m[1]) ?? 0) + e.amount);
+  }
   const storeMap = new Map<string, { revenue: number; orders: number; profit: number }>();
   for (const o of orders) {
     const k = o.store || "lain";
     const cur = storeMap.get(k) ?? { revenue: 0, orders: 0, profit: 0 };
     cur.revenue += o.total;
     cur.orders += 1;
-    cur.profit += profitOf(o);
+    cur.profit += profitOf(o); // untung KASAR (sblm iklan)
     storeMap.set(k, cur);
   }
   const byStore = Array.from(storeMap.entries())
-    .map(([store, v]) => ({ store, label: STORE_LABELS[store] ?? store, ...v }))
+    .map(([store, v]) => {
+      const ads = adsByStore.get(store) ?? 0;
+      return { store, label: STORE_LABELS[store] ?? store, ...v, adsSpend: ads, netProfit: v.profit - ads };
+    })
     .sort((a, b) => b.revenue - a.revenue);
 
   const dailyTrend = buildTrend(orders, profitOf, r);

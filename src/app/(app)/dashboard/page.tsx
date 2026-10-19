@@ -244,17 +244,22 @@ export default async function DashboardPage({
                 <th className="pb-2">Kedai</th>
                 <th className="pb-2 pl-3 text-right">Order</th>
                 <th className="pb-2 pl-3 text-right">Revenue</th>
-                <th className="pb-2 pl-4 text-right">Untung</th>
+                <th className="pb-2 pl-4 text-right">Untung bersih</th>
               </tr>
             </thead>
             <tbody>
               {d.byStore.map((s) => (
                 <tr key={s.store} className="border-b border-slate-100 last:border-0">
-                  <td className="py-2.5 pr-2 font-medium text-slate-800">{s.label}</td>
+                  <td className="py-2.5 pr-2">
+                    <p className="font-medium text-slate-800">{s.label}</p>
+                    {s.adsSpend > 0 && <p className="text-xs text-slate-400">− iklan {formatRM(s.adsSpend)}</p>}
+                  </td>
                   <td className="py-2.5 pl-3 text-right font-semibold tabular-nums">{s.orders}</td>
                   <td className="whitespace-nowrap py-2.5 pl-3 text-right tabular-nums">{formatRM(s.revenue)}</td>
-                  <td className="whitespace-nowrap py-2.5 pl-4 text-right font-semibold tabular-nums text-emerald-600">
-                    {formatRM(s.profit)}
+                  <td
+                    className={`whitespace-nowrap py-2.5 pl-4 text-right font-semibold tabular-nums ${s.netProfit >= 0 ? "text-emerald-600" : "text-rose-500"}`}
+                  >
+                    {formatRM(s.netProfit)}
                   </td>
                 </tr>
               ))}
