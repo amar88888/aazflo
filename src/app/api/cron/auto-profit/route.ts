@@ -120,13 +120,17 @@ export async function GET(req: Request) {
       for (const a of ranked) {
         if (activeLeft <= 2) break; // sentiasa simpan >= 2 ad hidup
         if (protectedTop.has(a.id)) continue; // 2 winner dilindungi
-        if (!(a.spend3 >= SPEND_PAUSE_3D && a.roas3 < ROAS_PAUSE)) continue; // rugi SAH (3 hari)
+        const loser3d = a.spend3 >= SPEND_PAUSE_3D && a.roas3 < ROAS_PAUSE; // rugi SAH 3 hari
+        // POTONG HARI NI: bakar >= RM80 hari ni + 0 jualan + TAKDE sejarah jualan (roas3<1 = bukan winner lag)
+        const deadToday = a.spendToday >= 80 && a.purToday === 0 && a.roas3 < 1.0;
+        if (!loser3d && !deadToday) continue;
         if (!dryrun) {
           const r = await gpost(a.id, { status: "PAUSED" });
           if (!r.ok) { actions.push(`❌ pause gagal "${a.name.slice(0, 24)}": ${r.error}`); continue; }
         }
         activeLeft--;
-        actions.push(`${dryrun ? "[DRY] " : ""}⏸️ PAUSE "${a.name.slice(0, 30)}" — 3hr ROAS ${a.roas3.toFixed(1)}x (rugi, bukan winner)`);
+        const why = deadToday ? `RM${a.spendToday.toFixed(0)} hari ni 0 jualan (dud)` : `3hr ROAS ${a.roas3.toFixed(1)}x (rugi)`;
+        actions.push(`${dryrun ? "[DRY] " : ""}⏸️ PAUSE "${a.name.slice(0, 30)}" — ${why}, bukan winner`);
       }
     }
 
