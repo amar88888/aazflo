@@ -105,19 +105,29 @@ export async function GET(req: Request) {
 
     const actions: string[] = [];
 
-    // ── A) PAUSE iklan rugi (JANGAN kosongkan adset) ──
+    // ── A) PAUSE iklan rugi — SELAMAT (19 Okt): automasi penuh tapi MUSTAHIL bunuh winner/kosongkan adset ──
+    // Lindung TOP 2 ad (ROAS 3-hari tertinggi) tiap adset; mesti tinggal >= 2 ad hidup;
+    // pause ikut ROAS 3-HARI sahaja (bukan "0 jualan hari ni" — lag attribution boleh tipu winner).
+    const byAdset = new Map<string, typeof ads>();
     for (const a of ads) {
-      const deadToday = a.spendToday >= SPEND_TODAY_DEAD && a.purToday === 0;
-      const loser3d = a.spend3 >= SPEND_PAUSE_3D && a.roas3 < ROAS_PAUSE;
-      if (!deadToday && !loser3d) continue;
-      if ((activePerAdset.get(a.adsetId) ?? 0) <= 1) {
-        actions.push(`⏸️ SKIP pause "${a.name.slice(0, 30)}" — iklan terakhir dlm adset (tak kosongkan)`);
-        continue;
+      if (a.status !== "ACTIVE") continue;
+      byAdset.set(a.adsetId, [...(byAdset.get(a.adsetId) ?? []), a]);
+    }
+    for (const [, group] of byAdset) {
+      const ranked = [...group].sort((x, y) => y.roas3 - x.roas3);
+      const protectedTop = new Set(ranked.slice(0, 2).map((a) => a.id));
+      let activeLeft = group.length;
+      for (const a of ranked) {
+        if (activeLeft <= 2) break; // sentiasa simpan >= 2 ad hidup
+        if (protectedTop.has(a.id)) continue; // 2 winner dilindungi
+        if (!(a.spend3 >= SPEND_PAUSE_3D && a.roas3 < ROAS_PAUSE)) continue; // rugi SAH (3 hari)
+        if (!dryrun) {
+          const r = await gpost(a.id, { status: "PAUSED" });
+          if (!r.ok) { actions.push(`❌ pause gagal "${a.name.slice(0, 24)}": ${r.error}`); continue; }
+        }
+        activeLeft--;
+        actions.push(`${dryrun ? "[DRY] " : ""}⏸️ PAUSE "${a.name.slice(0, 30)}" — 3hr ROAS ${a.roas3.toFixed(1)}x (rugi, bukan winner)`);
       }
-      const why = deadToday ? `RM${a.spendToday.toFixed(0)} hari ni 0 jualan` : `3hr ROAS ${a.roas3.toFixed(1)}x (rugi)`;
-      // ⚠️ AUTO-PAUSE DIMATIKAN (19 Okt): dua sistem (snippet #54 + Aazflo) pernah pause serentak
-      // sampai adset KOSONG = rugi jualan. Kini cuma CADANG — manusia putuskan. Tak tutup sendiri.
-      actions.push(`💡 CADANG pause "${a.name.slice(0, 30)}" — ${why} (semak & tutup manual kalau betul rugi)`);
     }
 
     // ── B) SCALE adset winner (+20%, cap RM${CAP_TOTAL}) ──
