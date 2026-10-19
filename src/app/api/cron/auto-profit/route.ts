@@ -115,12 +115,9 @@ export async function GET(req: Request) {
         continue;
       }
       const why = deadToday ? `RM${a.spendToday.toFixed(0)} hari ni 0 jualan` : `3hr ROAS ${a.roas3.toFixed(1)}x (rugi)`;
-      if (!dryrun) {
-        const r = await gpost(a.id, { status: "PAUSED" });
-        if (!r.ok) { actions.push(`❌ pause gagal "${a.name.slice(0, 24)}": ${r.error}`); continue; }
-      }
-      activePerAdset.set(a.adsetId, (activePerAdset.get(a.adsetId) ?? 1) - 1);
-      actions.push(`${dryrun ? "[DRY] " : ""}⏸️ PAUSE "${a.name.slice(0, 30)}" — ${why}`);
+      // ⚠️ AUTO-PAUSE DIMATIKAN (19 Okt): dua sistem (snippet #54 + Aazflo) pernah pause serentak
+      // sampai adset KOSONG = rugi jualan. Kini cuma CADANG — manusia putuskan. Tak tutup sendiri.
+      actions.push(`💡 CADANG pause "${a.name.slice(0, 30)}" — ${why} (semak & tutup manual kalau betul rugi)`);
     }
 
     // ── B) SCALE adset winner (+20%, cap RM${CAP_TOTAL}) ──
