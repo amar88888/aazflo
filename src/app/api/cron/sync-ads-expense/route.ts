@@ -7,6 +7,14 @@ export const dynamic = "force-dynamic";
 // Label tetap untuk perbelanjaan iklan yang di-sync automatik (supaya boleh dikenal & di-replace).
 const AUTO_LABEL = "Meta Ads (auto)";
 
+// Map nama campaign Meta → kedai (supaya boleh tolak iklan per kedai).
+function campaignStore(name: string): string {
+  const n = (name || "").toUpperCase();
+  if (n.includes("MAXLIM")) return n.includes("SG") ? "maxlimsg" : "maxlim";
+  if (n.includes("SG")) return "facelimsg";
+  return "facelim"; // FACELIM MY (LIVE 5 OKT, TEST, RETARGET) + default
+}
+
 // Auto-sync perbelanjaan iklan Meta ke jadual Expense supaya P&L tolak kos iklan secara automatik.
 // Tak perlu taip manual lagi — jalankan tiap beberapa jam (hari ni + semalam), atau backfill guna &days=N.
 //
@@ -35,24 +43,31 @@ export async function GET(req: Request) {
       d.setUTCDate(d.getUTCDate() - i);
       const ymd = d.toISOString().slice(0, 10);
 
-      // Spend sebenar Meta untuk hari tu (jumlah semua campaign).
+      // Spend sebenar Meta per campaign → kumpul ikut KEDAI.
       const rows = await fetchInsights({ level: "campaign", since: ymd, until: ymd });
       const spend = rows.reduce((s, r) => s + (r.spend || 0), 0);
+      const byStore = new Map<string, number>();
+      for (const r of rows) {
+        const store = campaignStore(r.name);
+        byStore.set(store, (byStore.get(store) ?? 0) + (r.spend || 0));
+      }
 
       const dayStart = new Date(`${ymd}T00:00:00.000Z`);
       const dayEnd = new Date(`${ymd}T23:59:59.999Z`);
 
-      // Buang auto-expense lama untuk hari ni (elak double-kira).
+      // Buang auto-expense lama (termasuk yang berlabel kedai) untuk hari ni — elak double-kira.
       await db.expense.deleteMany({
-        where: { type: "ads", label: AUTO_LABEL, date: { gte: dayStart, lte: dayEnd } },
+        where: { type: "ads", label: { startsWith: AUTO_LABEL }, date: { gte: dayStart, lte: dayEnd } },
       });
 
-      if (spend > 0) {
+      // Satu baris Expense per kedai (label "Meta Ads (auto) [store]") supaya untung per kedai boleh tolak iklan.
+      for (const [store, amt] of byStore) {
+        if (amt <= 0) continue;
         await db.expense.create({
           data: {
             type: "ads",
-            label: AUTO_LABEL,
-            amount: Math.round(spend * 100) / 100,
+            label: `${AUTO_LABEL} [${store}]`,
+            amount: Math.round(amt * 100) / 100,
             platform: null,
             date: dayStart,
             recurring: false,
