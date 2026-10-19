@@ -1,6 +1,7 @@
-import { loadCredentials } from "@/lib/credentials";
+import { loadCredentials, saveCredentials } from "@/lib/credentials";
 
 export type TelegramCreds = { botToken: string; chatId: string };
+type Recipients = { chatIds: string[] };
 
 // Config dari DB (ApiCredential 'telegram', encrypted) dengan fallback ke .env.
 export async function getTelegramConfig(): Promise<{ botToken?: string; chatId?: string }> {
@@ -11,21 +12,49 @@ export async function getTelegramConfig(): Promise<{ botToken?: string; chatId?:
   };
 }
 
+// Penerima tambahan (admin / group) yang didaftar via bot "/daftar".
+export async function getRecipients(): Promise<string[]> {
+  const { chatId } = await getTelegramConfig();
+  const extra = (await loadCredentials<Recipients>("telegram_recipients"))?.chatIds ?? [];
+  const all = [chatId, ...extra].filter((x): x is string => !!x);
+  return [...new Set(all)];
+}
+export async function addRecipient(chatId: string): Promise<boolean> {
+  const cur = (await loadCredentials<Recipients>("telegram_recipients"))?.chatIds ?? [];
+  const { chatId: primary } = await getTelegramConfig();
+  if (chatId === primary || cur.includes(chatId)) return false; // dah ada
+  await saveCredentials("telegram_recipients", { chatIds: [...cur, chatId] });
+  return true;
+}
+export async function removeRecipient(chatId: string): Promise<boolean> {
+  const cur = (await loadCredentials<Recipients>("telegram_recipients"))?.chatIds ?? [];
+  if (!cur.includes(chatId)) return false;
+  await saveCredentials("telegram_recipients", { chatIds: cur.filter((c) => c !== chatId) });
+  return true;
+}
+
+// Hantar ke SEMUA penerima (owner + admin/group yang didaftar). Ok kalau sekurang-kurangnya satu berjaya.
 export async function sendTelegram(text: string): Promise<{ ok: boolean; error?: string }> {
-  const { botToken, chatId } = await getTelegramConfig();
-  if (!botToken || !chatId) return { ok: false, error: "Bot token atau Chat ID belum diset." };
-  try {
-    const res = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ chat_id: chatId, text, parse_mode: "HTML", disable_web_page_preview: true }),
-    });
-    const json = await res.json().catch(() => ({}) as { ok?: boolean; description?: string });
-    if (!json.ok) return { ok: false, error: json.description || `HTTP ${res.status}` };
-    return { ok: true };
-  } catch (e) {
-    return { ok: false, error: e instanceof Error ? e.message : "Ralat rangkaian." };
+  const { botToken } = await getTelegramConfig();
+  const recipients = await getRecipients();
+  if (!botToken || recipients.length === 0) return { ok: false, error: "Bot token atau Chat ID belum diset." };
+  let anyOk = false;
+  let lastErr = "";
+  for (const chat_id of recipients) {
+    try {
+      const res = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ chat_id, text, parse_mode: "HTML", disable_web_page_preview: true }),
+      });
+      const json = await res.json().catch(() => ({}) as { ok?: boolean; description?: string });
+      if (json.ok) anyOk = true;
+      else lastErr = json.description || `HTTP ${res.status}`;
+    } catch (e) {
+      lastErr = e instanceof Error ? e.message : "Ralat rangkaian.";
+    }
   }
+  return anyOk ? { ok: true } : { ok: false, error: lastErr };
 }
 
 // Auto-detect chat ID dari mesej terakhir yang dihantar ke bot (getUpdates).

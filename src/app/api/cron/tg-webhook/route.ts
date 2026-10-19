@@ -4,7 +4,7 @@ import { getPnlData } from "@/lib/queries";
 import { formatRM } from "@/lib/format";
 import { PROFIT_TARGET } from "@/lib/constants";
 import { startOfDayMY, endOfDayMY } from "@/lib/myt";
-import { getTelegramConfig } from "@/lib/telegram";
+import { getTelegramConfig, getRecipients, addRecipient, removeRecipient } from "@/lib/telegram";
 
 // 💰 Bot "Profit Sekelip Mata" — taip apa-apa kat bot Telegram, dapat untung terkini SERTA-MERTA.
 // Telegram hantar update ke sini (webhook). Balas untung hari ni + target.
@@ -29,8 +29,31 @@ export async function POST(req: Request) {
 
   const update = await req.json().catch(() => ({}));
   const msg = update?.message ?? update?.edited_message;
+  if (!msg) return NextResponse.json({ ok: true });
   const fromChat = String(msg?.chat?.id ?? "");
-  if (!msg || fromChat !== String(chatId)) return NextResponse.json({ ok: true });
+  const fromUser = String(msg?.from?.id ?? ""); // penghantar (owner = chatId peribadi)
+  const cmd = String(msg?.text ?? "").trim().toLowerCase();
+  const owner = String(chatId);
+
+  // ── Command: /daftar & /buang — OWNER sahaja boleh daftar group/admin baru ──
+  if (cmd.startsWith("/daftar") || cmd.startsWith("/buang")) {
+    if (fromUser !== owner) {
+      await reply(fromChat, botToken, "⚠️ Hanya owner boleh daftar/buang penerima report.");
+      return NextResponse.json({ ok: true });
+    }
+    if (cmd.startsWith("/daftar")) {
+      const added = await addRecipient(fromChat);
+      await reply(fromChat, botToken, added ? "✅ Chat ni DAH DIDAFTAR terima report EVIOR (ka-ching, laporan untung, dll). Admin dalam group ni akan nampak semua." : "ℹ️ Chat ni memang dah terima report.");
+    } else {
+      const removed = await removeRecipient(fromChat);
+      await reply(fromChat, botToken, removed ? "🗑️ Chat ni dah DIBUANG dari senarai penerima report." : "ℹ️ Chat ni bukan penerima tambahan.");
+    }
+    return NextResponse.json({ ok: true });
+  }
+
+  // Profit sekelip mata — hanya untuk chat yang didaftar (owner + group/admin)
+  const recipients = await getRecipients();
+  if (!recipients.includes(fromChat)) return NextResponse.json({ ok: true });
 
   const now = new Date();
   const ds = startOfDayMY(now);
