@@ -4,7 +4,7 @@
 // Waktu ikut Malaysia (UTC+8):
 //   • sync-ads-expense (hari ni + semalam) — setiap jam :10
 //   • sync-woo + sync-stripe (backup webhook)  — setiap 3 jam :35
-//   • auto-profit (pause rugi / scale menang)   — 00:06, 04:06, 08:06, 12:06, 16:06, 20:06
+//   • auto-profit (scale performer / pause rugi selamat) — tiap 2 jam :06
 //   • laporan pagi Telegram                     — 08:00 (sync dulu, lepas tu hantar)
 
 import { sendTelegram } from "@/lib/telegram";
@@ -16,7 +16,8 @@ const JOBS: Job[] = [
   // sync-woo tiap JAM (backup kalau webhook real-time terlepas) + stripe tiap 3 jam
   { name: "sync", due: (_h, m) => m === 35, paths: ["sync-woo"] },
   { name: "sync-stripe", due: (h, m) => h % 3 === 0 && m === 40, paths: ["sync-stripe?days=2"] },
-  { name: "auto-profit", due: (h, m) => h % 4 === 0 && m === 6, paths: ["auto-profit?dryrun=0"] },
+  // Auto-profit tiap 2 JAM (dulu 4) — scale performer & potong rugi lebih kerap, kejar target
+  { name: "auto-profit", due: (h, m) => h % 2 === 0 && m === 6, paths: ["auto-profit?dryrun=0"] },
   // Hidupkan ad menang Facelim MY tepat 00:01 MYT (sekali, date-guard dalam endpoint)
   { name: "facelim-my-on", due: (h, m) => h === 0 && m === 1, paths: ["facelim-my-on"] },
   // Pengawal order (tersangkut / berganda / salah kedai) — tiap jam :20, 8 pagi–11 malam
