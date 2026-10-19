@@ -14,7 +14,7 @@ const SPEND_PAUSE_3D = 100;  // RM belanja 3 hari sebelum layak dinilai utk paus
 const SPEND_TODAY_DEAD = 50; // RM belanja hari ni + 0 jualan = pause
 const SPEND_SCALE_3D = 300;  // RM belanja 3 hari (volume terbukti) sebelum scale
 const SCALE_STEP = 1.2;      // naik +20% je (selamat)
-const CAP_TOTAL = 2500;      // cap budget harian akaun (RM) — dinaikkan 17 Okt: benarkan ad MENANG scale (yg rugi tetap auto-pause)
+const CAP_TOTAL = 4000;      // cap budget harian (RM) — dinaik 19 Okt utk fly target RM2000-3000; winner scale, loser tetap auto-pause
 
 type AdRow = { id: string; name: string; status: string; adsetId: string; adsetName: string; budget: number; spend3: number; pur3: number; roas3: number; spendToday: number; purToday: number };
 
