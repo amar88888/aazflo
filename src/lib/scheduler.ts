@@ -25,6 +25,8 @@ const JOBS: Job[] = [
   // Confirm delivery pagi (9am) — hantar status walaupun semua elok
   { name: "delivery-pagi", due: (h, m) => h === 9 && m === 0, paths: ["delivery-watchdog?send=1&force=1"] },
   { name: "delivery-watchdog", due: (_h, m) => m === 25, paths: ["delivery-watchdog?send=1"] },
+  // Penjaga billing — kesan akaun iklan tergantung (bank gagal potong → ads stop) tiap jam :40
+  { name: "billing-watchdog", due: (_h, m) => m === 40, paths: ["billing-watchdog"] },
   { name: "pengawal-order", due: (h, m) => h >= 8 && h <= 23 && m === 20, paths: ["order-guard?send=1"] },
   {
     name: "laporan-pagi",
