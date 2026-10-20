@@ -102,17 +102,20 @@ export async function runOrderGuard(): Promise<{ issues: GuardIssue[]; errors: s
     }
   }
 
-  // 2. Berganda: hanya yang MASIH boleh dibatalkan & betul-betul tersilap klik —
-  //    sama KEDAI + telefon + jumlah, jarak < 6 jam, kedua-dua belum selesai/batal/return.
-  //    (Beli silang-jenama Facelim+Maxlim, atau order lama yang dah dihantar, BUKAN berganda.)
+  // 2. Berganda: pelanggan sama (KEDAI + telefon) buat 2 order rapat masa — tersilap klik / beli dua kali.
+  //    DUA corak ditangkap:
+  //      • Jumlah SAMA, jarak ≤ 6 jam  → keyakinan tinggi (benar-benar berganda)
+  //      • Jumlah/produk LAIN, jarak ≤ 30 min → kemungkinan berganda (cth 2 botol & 3 botol seminit beza) — sahkan dulu
+  //    (Beli silang-jenama Facelim+Maxlim, atau order berasingan berjam/hari, BUKAN berganda.)
   // Hanya order yg akan DIHANTAR (dah bayar / COD disahkan). Checkout terbengkalai (unpaid/pending) bukan berganda.
   const CANCELLABLE = new Set(["processing", "on-hold", "printed", "nv-pending-pickup"]);
   const live = all.filter(({ o }) => CANCELLABLE.has(o.status));
+  // Kumpul ikut KEDAI + TELEFON sahaja (tak kira jumlah) supaya order produk lain pun tertangkap.
   const groups = new Map<string, { store: string; o: GuardOrder }[]>();
   for (const x of live) {
     const ph = normPhone(x.o.billing.phone);
     if (!ph) continue;
-    const k = `${x.store}|${ph}|${Number(x.o.total)}`;
+    const k = `${x.store}|${ph}`;
     groups.set(k, [...(groups.get(k) ?? []), x]);
   }
   for (const list of groups.values()) {
@@ -121,12 +124,16 @@ export async function runOrderGuard(): Promise<{ issues: GuardIssue[]; errors: s
     for (let i = 1; i < list.length; i++) {
       const a = list[i - 1];
       const b = list[i];
-      const gapH = (new Date(b.o.date_created_gmt + "Z").getTime() - new Date(a.o.date_created_gmt + "Z").getTime()) / 3600_000;
-      if (gapH > 6) continue;
+      const gapMin = (new Date(b.o.date_created_gmt + "Z").getTime() - new Date(a.o.date_created_gmt + "Z").getTime()) / 60_000;
+      const sameTotal = Number(a.o.total) === Number(b.o.total);
+      // Sama jumlah: tetingkap 6 jam. Jumlah/produk lain: tetingkap 30 minit (lebih ketat, elak false positive).
+      if (!(sameTotal ? gapMin <= 360 : gapMin <= 30)) continue;
+      const gapTxt = gapMin < 60 ? `${Math.round(gapMin)} min` : `${(gapMin / 60).toFixed(1)} jam`;
+      const note = sameTotal ? "" : " ⚠️ produk/jumlah LAIN — sahkan dgn pelanggan dulu";
       issues.push({
         kind: "berganda",
         key: `d:${a.store}:${a.o.id}:${b.store}:${b.o.id}`,
-        text: `${name(b.o)} — ${STORE_LABELS[a.store] ?? a.store} #${a.o.id} & ${STORE_LABELS[b.store] ?? b.store} #${b.o.id} (${b.o.total}, jarak ${gapH < 1 ? Math.round(gapH * 60) + " min" : gapH.toFixed(1) + " jam"})`,
+        text: `${name(b.o)} — ${STORE_LABELS[a.store] ?? a.store} #${a.o.id} (${a.o.total}) & #${b.o.id} (${b.o.total}), jarak ${gapTxt}${note}`,
       });
     }
   }
@@ -145,7 +152,7 @@ export function formatGuard(issues: GuardIssue[], errors: string[]): string {
     L.push(`<i>${hint}</i>`);
   };
   sec("sangkut", "⏳ Order tersangkut — belum push NinjaVan", "Push di WooCommerce → Orders → Push to Ninja Van");
-  sec("berganda", "👯 Kemungkinan order berganda", "Semak & batalkan yang lebih di Woo (Aazflo ikut automatik)");
+  sec("berganda", "👯 Kemungkinan order berganda", "Sahkan dgn pelanggan (WhatsApp) dulu; kalau silap, batal yang lebih + batal AWB NinjaVan sebelum pickup");
   sec("salah-kedai", "🌏 Pelanggan Malaysia di kedai SG", "NinjaVan SG tak boleh hantar — cipta semula di kedai MY, batal yang SG");
   if (errors.length) L.push("", `⚠️ Gagal baca: ${errors.join("; ").replace(/</g, "&lt;")}`);
   return L.join("\n");
