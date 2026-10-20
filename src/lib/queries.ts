@@ -196,6 +196,13 @@ export async function getDashboardData(r: DashRange): Promise<DashboardData> {
   const adsSpend = periodExpenses.filter((e) => e.type === "ads").reduce((s, e) => s + e.amount, 0);
   const roas = adsSpend > 0 ? revenue / adsSpend : null;
 
+  // Untung BERSIH tempoh SEBELUM (tolak iklan/kos juga) — supaya delta "vs semalam"
+  // banding bersih-lawan-bersih, bukan bersih-lawan-kasar (dulu buat delta nampak merudum palsu).
+  const prevFloor = r.prevFrom < DATA_START ? DATA_START : r.prevFrom;
+  const prevExpenses = await db.expense.findMany({ where: { date: { gte: prevFloor, lte: r.prevTo } } });
+  const prevTotalExpenses = prevExpenses.reduce((s, e) => s + e.amount, 0);
+  const prevNetProfit = sumProfit(prevOrders) - prevTotalExpenses;
+
   const byPlatform = PLATFORMS.map((platform) => {
     const po = orders.filter((o) => o.platform === platform);
     return {
@@ -295,7 +302,7 @@ export async function getDashboardData(r: DashRange): Promise<DashboardData> {
     roas,
     periodDays: Math.max(1, differenceInCalendarDays(r.to, floor) + 1),
     revenueDeltaPct: delta(revenue, sumRev(prevOrders)),
-    profitDeltaPct: delta(profit, sumProfit(prevOrders)),
+    profitDeltaPct: delta(profit, prevNetProfit),
     ordersDeltaPct: delta(orderCount, prevOrders.length),
     pendingAwb: statusCounts.pending ?? 0,
     returnsToHandle,
