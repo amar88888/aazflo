@@ -15,6 +15,7 @@ const SPEND_TODAY_DEAD = 50; // RM belanja hari ni + 0 jualan = pause
 const SPEND_SCALE_3D = 300;  // RM belanja 3 hari (volume terbukti) sebelum scale
 const SCALE_STEP = 1.2;      // naik +20% je (selamat)
 const CAP_TOTAL = 4000;      // cap budget harian (RM) — dinaik 19 Okt utk fly target RM2000-3000; winner scale, loser tetap auto-pause
+const SG_ADSET_CAP = 800;    // cap SG (market kecil/tepu) — 20 Okt SG auto-scale ke RM2354, ROAS merudun 2.66x bakar untung
 
 type AdRow = { id: string; name: string; status: string; adsetId: string; adsetName: string; budget: number; spend3: number; pur3: number; roas3: number; spendToday: number; purToday: number };
 
@@ -141,10 +142,15 @@ export async function GET(req: Request) {
       const val3 = adsetAds.reduce((s, a) => s + a.roas3 * a.spend3, 0);
       const roas3 = spend3 > 0 ? val3 / spend3 : 0;
       if (roas3 < ROAS_SCALE || spend3 < SPEND_SCALE_3D) continue;
+      // Cap khas SG — market kecil/tepu, jangan over-scale walau ROAS nampak tinggi (lag attribution).
+      const isSg = /sg/i.test(info.name);
+      const adsetCap = isSg ? SG_ADSET_CAP : CAP_TOTAL;
+      if (info.budget >= adsetCap) { actions.push(`🔒 "${info.name.slice(0, 24)}" dah cap RM${adsetCap}${isSg ? " (SG tepu)" : ""}`); continue; }
       let next = Math.round(info.budget * SCALE_STEP);
+      if (next > adsetCap) next = adsetCap; // jangan lepas cap adset (khususnya SG)
       const headroom = CAP_TOTAL - (totalBudget - info.budget);
       if (next > headroom) next = Math.floor(headroom);
-      if (next <= info.budget) { actions.push(`🔒 "${info.name.slice(0, 24)}" layak scale tapi cap RM${CAP_TOTAL} penuh`); continue; }
+      if (next <= info.budget) { actions.push(`🔒 "${info.name.slice(0, 24)}" layak scale tapi cap penuh`); continue; }
       if (!dryrun) {
         const r = await gpost(adsetId, { daily_budget: String(next * 100) });
         if (!r.ok) { actions.push(`❌ scale gagal "${info.name.slice(0, 24)}": ${r.error}`); continue; }
