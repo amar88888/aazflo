@@ -19,7 +19,10 @@ type GuardOrder = {
   meta_data?: { key: string; value: unknown }[];
 };
 
-export type GuardIssue = { kind: "sangkut" | "berganda" | "salah-kedai"; key: string; text: string };
+export type GuardIssue = { kind: "sangkut" | "berganda" | "salah-kedai" | "telefon"; key: string; text: string };
+
+// Status order yang akan / dah dihantar ke courier (bukan checkout terbengkalai).
+const SHIPPING = new Set(["processing", "on-hold", "printed", "nv-pending-pickup"]);
 
 const ACTIVE = new Set(["processing", "on-hold", "completed"]);
 const STORE_LABELS: Record<string, string> = {
@@ -90,6 +93,17 @@ export async function runOrderGuard(): Promise<{ issues: GuardIssue[]; errors: s
       });
     }
 
+    // 4. Telefon tak sah: order nak hantar tapi telefon < 8 digit (cth "11") —
+    //    NinjaVan tak boleh call untuk COD → hampir pasti gagal hantar / RTO.
+    const digits = normPhone(o.billing.phone);
+    if (SHIPPING.has(o.status) && digits.length < 8) {
+      issues.push({
+        kind: "telefon",
+        key: `t:${store}:${o.id}`,
+        text: `${label} #${o.id} ${name(o)} — telefon TAK SAH "${o.billing.phone || "(kosong)"}" (${digits.length} digit); COD tak boleh hantar`,
+      });
+    }
+
     // 3. Salah kedai: order MY di kedai SG
     const isSgStore = /sg/i.test(store);
     const looksMy = o.currency === "MYR" || o.shipping?.country === "MY" || o.billing?.country === "MY";
@@ -151,6 +165,7 @@ export function formatGuard(issues: GuardIssue[], errors: string[]): string {
     if (xs.length > 15) L.push(`• …dan ${xs.length - 15} lagi`);
     L.push(`<i>${hint}</i>`);
   };
+  sec("telefon", "📵 Telefon TAK SAH — COD tak boleh hantar", "Dapatkan telefon betul dari pelanggan; kalau tak dapat, batal AWB sebelum pickup (elak RTO)");
   sec("sangkut", "⏳ Order tersangkut — belum push NinjaVan", "Push di WooCommerce → Orders → Push to Ninja Van");
   sec("berganda", "👯 Kemungkinan order berganda", "Sahkan dgn pelanggan (WhatsApp) dulu; kalau silap, batal yang lebih + batal AWB NinjaVan sebelum pickup");
   sec("salah-kedai", "🌏 Pelanggan Malaysia di kedai SG", "NinjaVan SG tak boleh hantar — cipta semula di kedai MY, batal yang SG");
