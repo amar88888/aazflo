@@ -20,6 +20,8 @@ const JOBS: Job[] = [
   { name: "auto-profit", due: (h, m) => h % 2 === 0 && m === 6, paths: ["auto-profit?dryrun=0"] },
   // Hidupkan ad menang Facelim MY tepat 00:01 MYT (sekali, date-guard dalam endpoint)
   { name: "facelim-my-on", due: (h, m) => h === 0 && m === 1, paths: ["facelim-my-on"] },
+  // Resume ads yang ditutup malam 21 Okt (reset) — fresh start 22 Okt 00:01 (date-guard dalam endpoint)
+  { name: "resume-ads", due: (h, m) => h === 0 && m === 1, paths: ["resume-ads"] },
   // Pengawal order (tersangkut / berganda / salah kedai) — tiap jam :20, 8 pagi–11 malam
   // Penjaga delivery iklan (adset aktif tapi 0 ad = silent death) — tiap jam :25
   // Confirm delivery pagi (9am) — hantar status walaupun semua elok
