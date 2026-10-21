@@ -16,6 +16,7 @@ const SPEND_SCALE_3D = 300;  // RM belanja 3 hari (volume terbukti) sebelum scal
 const SCALE_STEP = 1.2;      // naik +20% je (selamat)
 const CAP_TOTAL = 4000;      // cap budget harian (RM) — dinaik 19 Okt utk fly target RM2000-3000; winner scale, loser tetap auto-pause
 const SG_ADSET_CAP = 800;    // cap SG (market kecil/tepu) — 20 Okt SG auto-scale ke RM2354, ROAS merudun 2.66x bakar untung
+const SCALE_TODAY_MIN = 2.5; // jangan scale kalau ROAS HARI NI < ni (Meta) walau 3-hari bagus — elak scale masa burn (cth catch-up lepas billing)
 
 type AdRow = { id: string; name: string; status: string; adsetId: string; adsetName: string; budget: number; spend3: number; pur3: number; roas3: number; spendToday: number; purToday: number };
 
@@ -64,14 +65,14 @@ export async function GET(req: Request) {
       "insights.date_preset(last_3d){spend,actions,action_values}";
     const adsRes = await gget(`${adAccountId}/ads`, { fields, limit: "300", effective_status: "['ACTIVE']" });
     const todayRes = await gget(`${adAccountId}/ads`, {
-      fields: "id,insights.date_preset(today){spend,actions}",
+      fields: "id,insights.date_preset(today){spend,actions,action_values}",
       limit: "300",
       effective_status: "['ACTIVE']",
     });
-    const todayMap = new Map<string, { spend: number; pur: number }>();
+    const todayMap = new Map<string, { spend: number; pur: number; val: number }>();
     for (const a of todayRes.data || []) {
       const ins = a.insights?.data?.[0];
-      todayMap.set(a.id, { spend: ins ? parseFloat(ins.spend || "0") : 0, pur: purchasesOf(ins?.actions) });
+      todayMap.set(a.id, { spend: ins ? parseFloat(ins.spend || "0") : 0, pur: purchasesOf(ins?.actions), val: valueOf(ins?.action_values) });
     }
 
     const ads: AdRow[] = [];
@@ -142,6 +143,14 @@ export async function GET(req: Request) {
       const val3 = adsetAds.reduce((s, a) => s + a.roas3 * a.spend3, 0);
       const roas3 = spend3 > 0 ? val3 / spend3 : 0;
       if (roas3 < ROAS_SCALE || spend3 < SPEND_SCALE_3D) continue;
+      // Jangan scale kalau HARI NI tengah burn (catch-up lepas billing, atau tepu) — walau 3-hari nampak bagus.
+      const todaySpend = adsetAds.reduce((s, a) => s + (todayMap.get(a.id)?.spend ?? 0), 0);
+      const todayVal = adsetAds.reduce((s, a) => s + (todayMap.get(a.id)?.val ?? 0), 0);
+      const todayRoas = todaySpend > 0 ? todayVal / todaySpend : 0;
+      if (todaySpend >= 50 && todayRoas < SCALE_TODAY_MIN) {
+        actions.push(`⏭️ "${info.name.slice(0, 24)}" skip scale — hari ni ROAS ${todayRoas.toFixed(1)}x (burn)`);
+        continue;
+      }
       // Cap khas SG — market kecil/tepu, jangan over-scale walau ROAS nampak tinggi (lag attribution).
       const isSg = /sg/i.test(info.name);
       const adsetCap = isSg ? SG_ADSET_CAP : CAP_TOTAL;
