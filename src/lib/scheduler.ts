@@ -27,6 +27,8 @@ const JOBS: Job[] = [
   { name: "delivery-watchdog", due: (_h, m) => m === 25, paths: ["delivery-watchdog?send=1"] },
   // Penjaga billing — kesan akaun iklan tergantung (bank gagal potong → ads stop) tiap jam :40
   { name: "billing-watchdog", due: (_h, m) => m === 40, paths: ["billing-watchdog"] },
+  // Penjaga belanja beku — kesan iklan tertiba stop deliver (payment tercekik) tiap jam :50, 10pg-10mlm
+  { name: "spend-watch", due: (h, m) => h >= 10 && h <= 22 && m === 50, paths: ["spend-watch"] },
   // SG watchdog — selepas trim RM700, pantau CPP tengah hari & petang (elak tepu/mahal balik)
   { name: "sg-watch", due: (h, m) => (h === 12 || h === 16) && m === 15, paths: ["sg-watch"] },
   { name: "pengawal-order", due: (h, m) => h >= 8 && h <= 23 && m === 20, paths: ["order-guard?send=1"] },
