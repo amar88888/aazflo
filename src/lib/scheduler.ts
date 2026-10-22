@@ -33,6 +33,8 @@ const JOBS: Job[] = [
   { name: "spend-watch", due: (h, m) => h >= 10 && h <= 22 && m === 50, paths: ["spend-watch"] },
   // SG watchdog — selepas trim RM700, pantau CPP tengah hari & petang (elak tepu/mahal balik)
   { name: "sg-watch", due: (h, m) => (h === 12 || h === 16) && m === 15, paths: ["sg-watch"] },
+  // SG dayparting — hidup Isnin-Sabtu, rehat Ahad (hari clean yg sepi). Tiap hari 00:05 MYT.
+  { name: "sg-dayparting", due: (h, m) => h === 0 && m === 5, paths: ["sg-dayparting"] },
   { name: "pengawal-order", due: (h, m) => h >= 8 && h <= 23 && m === 20, paths: ["order-guard?send=1"] },
   {
     name: "laporan-pagi",
