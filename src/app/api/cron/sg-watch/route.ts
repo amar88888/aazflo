@@ -6,10 +6,16 @@ export const dynamic = "force-dynamic";
 
 const GRAPH = "https://graph.facebook.com/v21.0";
 const PUR = new Set(["purchase", "omni_purchase", "offsite_conversion.fb_pixel_purchase"]);
+const SG_CAMPAIGN = "120251751539750356"; // FACELIM SG - LIVE 7 OKT
 
-// Ambang "sihat" SG (selepas trim RM700 + cap auto-profit RM800).
+// Ambang "sihat" SG (selepas trim + cap auto-profit RM800).
 const CPP_OK = 50; // CPP <= ni = efisien (19 Okt SG RM43)
 const CPP_BAD = 65; // CPP >= ni = mahal balik (20 Okt SG RM71 — tepu)
+
+// Ambang AUTO-CUT — SG betul-betul bleeding → pause SENDIRI hari tu (dayparting cuba balik esok).
+const CUT_MIN_SPEND = 300; // cukup belanja utk nilai (elak cut pagi palsu)
+const CUT_ROAS = 1.5; // ROAS bawah ni = bawah breakeven = rugi
+const CUT_CPP = 85; // CPP atas ni = terlalu mahal, bakar
 
 function ymd(offset = 0): string {
   const d = new Date(Date.now() + 8 * 3600 * 1000);
@@ -57,6 +63,25 @@ export async function GET(req: Request) {
   // Belum cukup belanja utk dinilai (pagi awal) — jangan alert palsu.
   if (today.spend < 150) {
     return NextResponse.json({ ok: true, skipped: "belanja SG belum cukup utk dinilai", today });
+  }
+
+  // 🔪 AUTO-CUT — SG bleeding selepas belanja cukup → pause SENDIRI (tak tunggu manual).
+  const bleeding =
+    today.spend >= CUT_MIN_SPEND &&
+    ((today.roas > 0 && today.roas < CUT_ROAS) || today.cpp >= CUT_CPP);
+  if (bleeding) {
+    const r = await fetch(`${GRAPH}/${SG_CAMPAIGN}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({ status: "PAUSED", access_token: accessToken }).toString(),
+    });
+    const cut = r.ok && !(await r.clone().json()).error;
+    await sendTelegram(
+      `🔪 <b>SG AUTO-CUT</b> — SG bleeding, dipotong terus.\n` +
+        `CPP RM${today.cpp.toFixed(0)} · ROAS ${today.roas.toFixed(2)}x · ${today.pur} sale · belanja RM${today.spend.toFixed(0)}\n` +
+        (cut ? "SG PAUSED. Dayparting cuba balik esok (hari jualan). Jimat duit, tak bakar." : "⚠️ Gagal pause — check manual.")
+    );
+    return NextResponse.json({ ok: true, action: "auto-cut", cut, today, yest });
   }
 
   const verdict =
