@@ -14,8 +14,16 @@ const SPEND_PAUSE_3D = 100;  // RM belanja 3 hari sebelum layak dinilai utk paus
 const SPEND_TODAY_DEAD = 50; // RM belanja hari ni + 0 jualan = pause
 const SPEND_SCALE_3D = 300;  // RM belanja 3 hari (volume terbukti) sebelum scale
 const SCALE_STEP = 1.2;      // naik +20% je (selamat)
-const CAP_TOTAL = 4000;      // cap budget harian (RM) — dinaik 19 Okt utk fly target RM2000-3000; winner scale, loser tetap auto-pause
-const SG_ADSET_CAP = 800;    // cap SG (market kecil/tepu) — 20 Okt SG auto-scale ke RM2354, ROAS merudun 2.66x bakar untung
+// FASA STABIL (24 Okt): 16-19 Okt untung bersih RM1,388-1,767 bila belanja <= RM2.6k (MY RM700-1,150 ROAS 3.8-4.4x).
+// 20-23 Okt belanja RM3k+ (auto-scale +20%/2jam) → untung jatuh RM462-994. Kunci dulu sweet spot; naikkan cap
+// bila untung stabil RM1,100+ dan ada winner baru (fasa naik ke RM2,000-2,500).
+const CAP_TOTAL = 2100;      // cap budget harian semua adset (RM)
+const SG_ADSET_CAP = 600;    // cap SG (market kecil/tepu) — 17 Okt RM600 = 9.1x; RM815+ ROAS jatuh
+// Cap ikut adset (id) — MY sweet spot RM700-1,150; TEST tak di-scale (tugas dia cari winner, bukan volume).
+const ADSET_CAP: Record<string, number> = {
+  "120251722984390356": 1200, // FACELIM MY broad
+  "120251768506270356": 300, // TEST broad MY - creative hunt
+};
 const SCALE_TODAY_MIN = 2.5; // jangan scale kalau ROAS HARI NI < ni (Meta) walau 3-hari bagus — elak scale masa burn (cth catch-up lepas billing)
 
 type AdRow = { id: string; name: string; status: string; adsetId: string; adsetName: string; budget: number; spend3: number; pur3: number; roas3: number; spendToday: number; purToday: number };
@@ -153,7 +161,7 @@ export async function GET(req: Request) {
       }
       // Cap khas SG — market kecil/tepu, jangan over-scale walau ROAS nampak tinggi (lag attribution).
       const isSg = /sg/i.test(info.name);
-      const adsetCap = isSg ? SG_ADSET_CAP : CAP_TOTAL;
+      const adsetCap = ADSET_CAP[adsetId] ?? (isSg ? SG_ADSET_CAP : CAP_TOTAL);
       if (info.budget >= adsetCap) { actions.push(`🔒 "${info.name.slice(0, 24)}" dah cap RM${adsetCap}${isSg ? " (SG tepu)" : ""}`); continue; }
       let next = Math.round(info.budget * SCALE_STEP);
       if (next > adsetCap) next = adsetCap; // jangan lepas cap adset (khususnya SG)
