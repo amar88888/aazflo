@@ -28,6 +28,9 @@ export type WooOrder = {
   total: string;
   shipping_total: string;
   date_created: string;
+  payment_method?: string;
+  payment_method_title?: string;
+  date_paid_gmt?: string | null;
   billing: { first_name: string; last_name: string };
   line_items: {
     name: string;

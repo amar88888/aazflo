@@ -21,6 +21,10 @@ model Order {
   total           Float
   platformFee     Float       @default(0)
   shippingFee     Float       @default(0)
+  // Bayaran (dari Woo): cara bayar + masa dibayar. COD = paymentMethod "cod".
+  paymentMethod   String? // cod | chip | billplz | stripe | ...
+  paymentTitle    String? // label Woo, cth "FPX / Kad"
+  paidAt          DateTime? // Woo date_paid — null = belum bayar (COD dibayar masa terima)
   orderedAt       DateTime
   awbPrintedAt    DateTime?
   awbBatchId      String?
