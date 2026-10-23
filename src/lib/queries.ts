@@ -133,6 +133,19 @@ export type DashboardData = {
   revenueDeltaPct: number | null;
   profitDeltaPct: number | null;
   ordersDeltaPct: number | null;
+  // Bayaran (ikut tempoh): online dah dibayar vs COD (kutip masa hantar)
+  onlinePaid: { orders: number; revenue: number };
+  cod: { orders: number; revenue: number };
+  payUnknown: number; // order Woo lama yang belum ada data bayaran (sebelum sync)
+  onlinePaidList: {
+    id: string;
+    platformOrderId: string;
+    store: string;
+    buyerName: string | null;
+    total: number;
+    method: string;
+    paidAt: Date;
+  }[];
   // Alert (keadaan semasa, bukan ikut tempoh)
   pendingAwb: number;
   returnsToHandle: number;
@@ -153,9 +166,14 @@ export type DashboardData = {
     currency: string;
     status: string;
     deliveryStatus: string;
+    payment: "online" | "cod" | null;
     orderedAt: Date;
   }[];
 };
+
+// Online dah dibayar = bukan COD + Woo dah tanda tarikh bayar.
+const isOnlinePaid = (o: { paymentMethod: string | null; paidAt: Date | null }) =>
+  !!o.paymentMethod && o.paymentMethod !== "cod" && !!o.paidAt;
 
 export async function getDashboardData(r: DashRange): Promise<DashboardData> {
   const feeRates = await getPlatformFees();
@@ -202,6 +220,23 @@ export async function getDashboardData(r: DashRange): Promise<DashboardData> {
   const prevExpenses = await db.expense.findMany({ where: { date: { gte: prevFloor, lte: r.prevTo } } });
   const prevTotalExpenses = prevExpenses.reduce((s, e) => s + e.amount, 0);
   const prevNetProfit = sumProfit(prevOrders) - prevTotalExpenses;
+
+  // Bayaran: online (duit dah masuk) vs COD (kutip masa hantar)
+  const onlineOrders = orders.filter(isOnlinePaid);
+  const codOrders = orders.filter((o) => o.paymentMethod === "cod");
+  const payUnknown = orders.filter((o) => o.platform === "woocommerce" && !o.paymentMethod).length;
+  const onlinePaidList = [...onlineOrders]
+    .sort((a, b) => b.paidAt!.getTime() - a.paidAt!.getTime())
+    .slice(0, 10)
+    .map((o) => ({
+      id: o.id,
+      platformOrderId: o.platformOrderId,
+      store: o.store,
+      buyerName: o.buyerName,
+      total: o.total,
+      method: o.paymentTitle || o.paymentMethod || "Online",
+      paidAt: o.paidAt!,
+    }));
 
   const byPlatform = PLATFORMS.map((platform) => {
     const po = orders.filter((o) => o.platform === platform);
@@ -287,6 +322,7 @@ export async function getDashboardData(r: DashRange): Promise<DashboardData> {
     currency: /sg/i.test(o.store) ? "SGD" : "MYR",
     status: o.status,
     deliveryStatus: o.deliveryStatus,
+    payment: o.paymentMethod === "cod" ? ("cod" as const) : isOnlinePaid(o) ? ("online" as const) : null,
     orderedAt: o.orderedAt,
   }));
 
@@ -304,6 +340,10 @@ export async function getDashboardData(r: DashRange): Promise<DashboardData> {
     revenueDeltaPct: delta(revenue, sumRev(prevOrders)),
     profitDeltaPct: delta(profit, prevNetProfit),
     ordersDeltaPct: delta(orderCount, prevOrders.length),
+    onlinePaid: { orders: onlineOrders.length, revenue: sumRev(onlineOrders) },
+    cod: { orders: codOrders.length, revenue: sumRev(codOrders) },
+    payUnknown,
+    onlinePaidList,
     pendingAwb: statusCounts.pending ?? 0,
     returnsToHandle,
     lowStockCount,

@@ -18,7 +18,7 @@ import {
 import { PageHeader, Card, StatCard, Badge } from "@/components/ui";
 import { RevenueProfitChart, PlatformRevenueChart } from "@/components/charts";
 import { PlatformBadge } from "@/components/platform-icon";
-import { Wallet, TrendingUp, ShoppingBag, Percent, Printer, RotateCcw, PackageOpen, Megaphone } from "lucide-react";
+import { Wallet, TrendingUp, ShoppingBag, Percent, Printer, RotateCcw, PackageOpen, Megaphone, CreditCard } from "lucide-react";
 import Link from "next/link";
 
 export const dynamic = "force-dynamic";
@@ -93,7 +93,7 @@ export default async function DashboardPage({
       />
 
       {/* KPI ikut tempoh dipilih, banding tempoh sebelum */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
         <StatCard
           label={`Revenue (${d.periodLabel})`}
           value={formatRM(d.revenue)}
@@ -126,6 +126,14 @@ export default async function DashboardPage({
           tone="cyan"
           delta={d.ordersDeltaPct}
           deltaLabel={d.deltaLabel}
+        />
+        <StatCard
+          label={`Dah Bayar Online (${d.periodLabel})`}
+          value={formatRM(d.onlinePaid.revenue)}
+          sub={`${d.onlinePaid.orders} order · COD ${d.cod.orders} (${formatRM(d.cod.revenue)})`}
+          icon={CreditCard}
+          tone="emerald"
+          accent="green"
         />
         <StatCard
           label="Margin Untung"
@@ -168,6 +176,51 @@ export default async function DashboardPage({
           </Card>
         );
       })()}
+
+      {/* 💳 Customer dah bayar online — duit dah masuk, tak risiko COD tolak */}
+      <Card className="mt-4 !p-0">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 px-5 py-4">
+          <h2 className="text-sm font-semibold text-slate-700">💳 Customer Dah Bayar Online ({d.periodLabel})</h2>
+          <span className="text-xs text-slate-400">
+            {d.onlinePaid.orders} online · {d.cod.orders} COD
+            {d.onlinePaid.orders + d.cod.orders > 0 &&
+              ` · ${formatPercent((d.onlinePaid.orders / (d.onlinePaid.orders + d.cod.orders)) * 100)} online`}
+          </span>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <tbody>
+              {d.onlinePaidList.map((o) => (
+                <tr key={o.id} className="border-b border-white/5 last:border-0 hover:bg-white/5">
+                  <td className="px-5 py-3">
+                    <p className="font-medium text-slate-800">{o.buyerName ?? "-"}</p>
+                    <p className="text-xs text-slate-400">
+                      #{o.platformOrderId} · {o.store}
+                    </p>
+                  </td>
+                  <td className="px-5 py-3">
+                    <Badge color="green">{o.method}</Badge>
+                  </td>
+                  <td className="whitespace-nowrap px-5 py-3 text-right font-semibold tabular-nums text-emerald-500">
+                    {formatRM(o.total)}
+                  </td>
+                  <td className="whitespace-nowrap px-5 py-3 text-right text-xs text-slate-500">{formatDateTime(o.paidAt)}</td>
+                </tr>
+              ))}
+              {d.onlinePaidList.length === 0 && (
+                <tr>
+                  <td className="px-5 py-6 text-center text-slate-400">Belum ada bayaran online dalam tempoh ni</td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+        {d.payUnknown > 0 && (
+          <p className="border-t border-slate-200 px-5 py-2 text-xs text-slate-500">
+            {d.payUnknown} order belum ada data bayaran — akan terisi selepas sync Woo seterusnya.
+          </p>
+        )}
+      </Card>
 
       {/* Nota: Aazflo = angka sebenar (order Woo). Meta Ads Manager tunjuk lebih (attribution). */}
       <p className="mt-3 flex items-center gap-1.5 text-xs text-slate-400">
@@ -336,6 +389,10 @@ export default async function DashboardPage({
                     <Badge color={o.status === "completed" ? "green" : o.status === "pending" ? "red" : "blue"}>
                       {ORDER_STATUS_LABELS[o.status as OrderStatus] ?? o.status}
                     </Badge>
+                  </td>
+                  <td className="px-5 py-3">
+                    {o.payment === "online" && <Badge color="green">Online ✓</Badge>}
+                    {o.payment === "cod" && <Badge color="orange">COD</Badge>}
                   </td>
                   <td className="px-5 py-3 text-right text-xs text-slate-500">{formatDateTime(o.orderedAt)}</td>
                 </tr>

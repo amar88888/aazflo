@@ -49,7 +49,11 @@ export async function upsertWooOrder(wo: WooOrder, storeKey = "maxlim"): Promise
   const platformOrderId = String(wo.id);
   const buyerName = `${wo.billing.first_name} ${wo.billing.last_name}`.trim() || null;
   const currency = ((wo as { currency?: string }).currency || "").toUpperCase();
-  const ship = fulfilCost(storeKey, (wo as { payment_method?: string }).payment_method ?? "", currency);
+  const ship = fulfilCost(storeKey, wo.payment_method ?? "", currency);
+  // Bayaran: Woo isi date_paid bila online payment berjaya (COD kosong sampai complete).
+  const paymentMethod = wo.payment_method || null;
+  const paymentTitle = wo.payment_method_title || null;
+  const paidAt = wo.date_paid_gmt ? new Date(wo.date_paid_gmt + "Z") : null;
   // Order kedai SG disimpan dalam SGD (dashboard darab SGD_TO_MYR). Kalau order tu sebenarnya MYR
   // (pelanggan Malaysia beli di kedai SG), tukar ke unit SGD supaya bila didarab balik = RM sebenar.
   const fx = /sg/i.test(storeKey) && currency === "MYR" ? 1 / SGD_TO_MYR : 1;
@@ -98,6 +102,9 @@ export async function upsertWooOrder(wo: WooOrder, storeKey = "maxlim"): Promise
         status,
         total: money(wo.total),
         shippingFee: ship,
+        paymentMethod,
+        paymentTitle,
+        paidAt,
         orderedAt,
         trackingNo: tracking ?? existing.trackingNo,
         courier: courier ?? existing.courier,
@@ -125,6 +132,9 @@ export async function upsertWooOrder(wo: WooOrder, storeKey = "maxlim"): Promise
       buyerName,
       total: money(wo.total),
       shippingFee: ship,
+      paymentMethod,
+      paymentTitle,
+      paidAt,
       orderedAt,
       source: "api",
       trackingNo: tracking,
