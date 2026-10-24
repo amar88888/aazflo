@@ -2,7 +2,7 @@
 // Tujuan: buat app "installable" + shell offline ringan.
 // Data dinamik (dashboard, order) SENTIASA network-first — tak cache stale.
 
-const CACHE = "aazflo-shell-v1";
+const CACHE = "aazflo-shell-v2"; // v2: ikon baru (A putih atas hitam)
 const SHELL = ["/manifest.webmanifest", "/icon-192.png", "/icon-512.png", "/apple-touch-icon.png"];
 
 self.addEventListener("install", (e) => {

@@ -1,10 +1,11 @@
 import type { Metadata, Viewport } from "next";
-import { Michroma, Space_Grotesk, JetBrains_Mono } from "next/font/google";
+import { Sora, Space_Grotesk, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { PwaRegister } from "@/components/pwa-register";
 
-const brandFont = Michroma({
-  weight: "400",
+// Logo AAZFLO — Sora tebal (huruf A ikon & nama di login)
+const brandFont = Sora({
+  weight: "700",
   subsets: ["latin"],
   variable: "--font-brand",
   display: "swap",
@@ -25,14 +26,14 @@ const monoFont = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  applicationName: "Aazflo",
-  title: { default: "Aazflo", template: "%s · Aazflo" },
+  applicationName: "AAZFLO",
+  title: { default: "AAZFLO", template: "%s · AAZFLO" },
   description: "Sistem operasi bisnes e-commerce — TikTok, Shopee, WooCommerce",
   manifest: "/manifest.webmanifest",
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
-    title: "Aazflo",
+    title: "AAZFLO",
   },
   icons: {
     icon: [
