@@ -25,6 +25,7 @@ const ADSET_CAP: Record<string, number> = {
   "120251768506270356": 300, // TEST broad MY - creative hunt
 };
 const SCALE_TODAY_MIN = 2.5; // jangan scale kalau ROAS HARI NI < ni (Meta) walau 3-hari bagus — elak scale masa burn (cth catch-up lepas billing)
+const SCALE_TODAY_SPEND_MIN = 100; // RM belanja hari ni minimum sebelum layak scale (ROAS hari ni mesti ada bukti)
 
 type AdRow = { id: string; name: string; status: string; adsetId: string; adsetName: string; budget: number; spend3: number; pur3: number; roas3: number; spendToday: number; purToday: number };
 
@@ -109,11 +110,27 @@ export async function GET(req: Request) {
       budgetById.set(s.id, b);
       totalBudget += b;
     }
+
+    const actions: string[] = [];
+
+    // ── 0) PENJAGA BUDGET — adset atas had (kod lama, manual, Meta) → turun balik ke had ──
+    // 24 Okt: deploy terlepas → MY naik RM1,800 semalaman tanpa sesiapa sedar.
+    for (const s of adsetRes.data || []) {
+      const b = budgetById.get(s.id) ?? 0;
+      const cap = ADSET_CAP[s.id] ?? (/sg/i.test(s.name || "") ? SG_ADSET_CAP : CAP_TOTAL);
+      if (b <= cap) continue;
+      if (!dryrun) {
+        const r = await gpost(s.id, { daily_budget: String(cap * 100) });
+        if (!r.ok) { actions.push(`❌ turun budget gagal "${String(s.name).slice(0, 24)}": ${r.error}`); continue; }
+        budgetById.set(s.id, cap);
+        totalBudget -= b - cap;
+      }
+      actions.push(`${dryrun ? "[DRY] " : ""}🛡️ BUDGET "${String(s.name).slice(0, 30)}" RM${b}→RM${cap} (atas had)`);
+    }
+
     // Adset yang ada ad aktif (calon scale)
     const adsetBudget = new Map<string, { name: string; budget: number }>();
     for (const a of ads) if (!adsetBudget.has(a.adsetId)) adsetBudget.set(a.adsetId, { name: a.adsetName, budget: budgetById.get(a.adsetId) ?? a.budget });
-
-    const actions: string[] = [];
 
     // ── A) PAUSE iklan rugi — SELAMAT (19 Okt): automasi penuh tapi MUSTAHIL bunuh winner/kosongkan adset ──
     // Lindung TOP 2 ad (ROAS 3-hari tertinggi) tiap adset; mesti tinggal >= 2 ad hidup;
@@ -155,7 +172,12 @@ export async function GET(req: Request) {
       const todaySpend = adsetAds.reduce((s, a) => s + (todayMap.get(a.id)?.spend ?? 0), 0);
       const todayVal = adsetAds.reduce((s, a) => s + (todayMap.get(a.id)?.val ?? 0), 0);
       const todayRoas = todaySpend > 0 ? todayVal / todaySpend : 0;
-      if (todaySpend >= 50 && todayRoas < SCALE_TODAY_MIN) {
+      // Jangan scale bila data hari ni belum cukup (cth 2 pagi) — 24 Okt 02:06 scale ikut 3-hari je, MY RM1,500→1,800.
+      if (todaySpend < SCALE_TODAY_SPEND_MIN) {
+        actions.push(`⏭️ "${info.name.slice(0, 24)}" skip scale — belanja hari ni RM${todaySpend.toFixed(0)}, data belum cukup`);
+        continue;
+      }
+      if (todayRoas < SCALE_TODAY_MIN) {
         actions.push(`⏭️ "${info.name.slice(0, 24)}" skip scale — hari ni ROAS ${todayRoas.toFixed(1)}x (burn)`);
         continue;
       }
@@ -187,7 +209,14 @@ export async function GET(req: Request) {
     ];
     await sendTelegram(lines.join("\n"));
 
-    return NextResponse.json({ ok: true, dryrun, totalBudget, spendToday: Math.round(totSpendToday), actions });
+    return NextResponse.json({
+      ok: true,
+      dryrun,
+      caps: { total: CAP_TOTAL, sg: SG_ADSET_CAP, adset: ADSET_CAP, todaySpendMin: SCALE_TODAY_SPEND_MIN },
+      totalBudget,
+      spendToday: Math.round(totSpendToday),
+      actions,
+    });
   } catch (err) {
     return NextResponse.json({ ok: false, message: err instanceof Error ? err.message : String(err) }, { status: 500 });
   }
