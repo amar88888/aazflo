@@ -25,14 +25,14 @@ const monoFont = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  applicationName: "Aazflo",
-  title: { default: "Aazflo", template: "%s · Aazflo" },
+  applicationName: "AAZFLO",
+  title: { default: "AAZFLO", template: "%s · AAZFLO" },
   description: "Sistem operasi bisnes e-commerce — TikTok, Shopee, WooCommerce",
   manifest: "/manifest.webmanifest",
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
-    title: "Aazflo",
+    title: "AAZFLO",
   },
   icons: {
     icon: [

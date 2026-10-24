@@ -3,8 +3,8 @@ import type { MetadataRoute } from "next";
 // Manifest PWA — buat Aazflo boleh "Add to Home Screen" jadi app.
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "Aazflo — Sistem Operasi Bisnes",
-    short_name: "Aazflo",
+    name: "AAZFLO — Sistem Operasi Bisnes",
+    short_name: "AAZFLO",
     description: "Dashboard jualan & untung TikTok, Shopee, WooCommerce dalam satu app.",
     start_url: "/dashboard",
     scope: "/",
