@@ -1,31 +1,26 @@
-// Logo Aazflo — peak mark (vektor crisp) + wordmark Michroma. Konsep #3.
+// Logo AAZFLO — minimal: huruf "A" (font Sora) dalam jubin. Atas app guna ikon je; nama ditulis sekali di login.
 
-export function LogoMark({ size = 32 }: { size?: number }) {
+export function LogoMark({ size = 32, inverted = false }: { size?: number; inverted?: boolean }) {
+  // Default: jubin putih + A hitam (atas latar gelap app). inverted: jubin hitam + A putih (atas kad putih login).
   return (
-    <svg width={size} height={size} viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg"
-      style={{ filter: "drop-shadow(0 0 6px rgba(34,211,238,0.65))" }}>
-      <defs>
-        <linearGradient id="azPeak" x1="5" y1="36" x2="35" y2="4" gradientUnits="userSpaceOnUse">
-          <stop stopColor="#a855f7" />
-          <stop offset="0.5" stopColor="#6366f1" />
-          <stop offset="1" stopColor="#22d3ee" />
-        </linearGradient>
-      </defs>
-      <path d="M20 4 L33 36 L26 36 L20 21 L14 36 L7 36 Z" fill="url(#azPeak)" />
-    </svg>
+    <span
+      className={`inline-flex shrink-0 items-center justify-center font-bold leading-none ${
+        inverted ? "bg-black text-white" : "bg-white text-black"
+      }`}
+      style={{
+        width: size,
+        height: size,
+        borderRadius: size * 0.28,
+        fontSize: size * 0.6,
+        fontFamily: "var(--font-brand)",
+      }}
+      aria-label="AAZFLO"
+    >
+      A
+    </span>
   );
 }
 
-export function Logo({ size = 30, dark = false }: { size?: number; dark?: boolean }) {
-  return (
-    <div className="flex items-center gap-2.5">
-      <LogoMark size={size} />
-      <span
-        className={`text-[15px] uppercase tracking-[0.16em] ${dark ? "text-white" : "brand-text"}`}
-        style={{ fontFamily: "var(--font-brand)" }}
-      >
-        Aazflo
-      </span>
-    </div>
-  );
+export function Logo({ size = 30 }: { size?: number }) {
+  return <LogoMark size={size} />;
 }

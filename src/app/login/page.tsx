@@ -35,16 +35,10 @@ export default function LoginPage() {
 
       <div className="relative w-full max-w-sm rounded-2xl border border-white/10 bg-white/95 p-8 shadow-2xl backdrop-blur">
         <div className="mb-7 flex flex-col items-center text-center">
-          <LogoMark size={52} />
-          <h1
-            className="brand-text mt-3 text-2xl uppercase tracking-[0.16em]"
-            style={{ fontFamily: "var(--font-brand)" }}
-          >
-            Aazflo
+          <LogoMark size={56} inverted />
+          <h1 className="mt-4 text-2xl font-bold tracking-[0.14em] text-slate-900" style={{ fontFamily: "var(--font-brand)" }}>
+            AAZFLO
           </h1>
-          <p className="mt-1.5 text-[11px] font-medium uppercase tracking-[0.22em] text-slate-400">
-            Smart Flow · Smart Growth
-          </p>
         </div>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
