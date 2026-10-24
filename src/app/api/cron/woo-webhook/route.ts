@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { upsertWooOrder } from "@/lib/woo-sync";
 import { sendTelegram } from "@/lib/telegram";
 import type { WooOrder } from "@/lib/integrations/woocommerce";
+import { sendPurchaseCapi, type CapiOrder } from "@/lib/meta-capi";
 
 export const dynamic = "force-dynamic";
 
@@ -51,8 +52,17 @@ export async function POST(req: Request) {
   const valid = s === "processing" || s === "completed" || s.startsWith("nv-");
   const firstTime = !prev || prev.status === "unpaid";
   let kaching = false;
+  let capi: { sent: boolean; detail: string } | null = null;
   if (valid && firstTime && !alerted.has(key)) {
     alerted.add(key);
+    // Meta CAPI: Purchase dari server (eventID sama dgn pixel browser → dedup)
+    capi = await sendPurchaseCapi(wo as CapiOrder, store).catch((e) => ({ sent: false, detail: String(e) }));
+    // Amaran CAPI gagal (maks sekali sejam) — kedai tanpa pixel CAPI tak dikira gagal
+    const gc = globalThis as unknown as { __capiAlert?: number };
+    if (!capi.sent && !capi.detail.includes("tiada pixel") && Date.now() - (gc.__capiAlert ?? 0) > 3600_000) {
+      gc.__capiAlert = Date.now();
+      await sendTelegram(`⚠️ <b>Meta CAPI gagal</b>\n${capi.detail.replace(/</g, "&lt;").slice(0, 300)}`).catch(() => {});
+    }
     const cur = (wo.currency || "").toUpperCase() === "SGD" ? "S$" : "RM";
     const pay = wo.payment_method === "cod" ? "COD" : wo.payment_method_title || "Dibayar";
     const items = wo.line_items.map((li) => `${li.name} ×${li.quantity}`).join(", ");
@@ -67,5 +77,5 @@ export async function POST(req: Request) {
     kaching = (await sendTelegram(msg)).ok;
   }
 
-  return NextResponse.json({ ok: true, store, order: wo.id, kaching });
+  return NextResponse.json({ ok: true, store, order: wo.id, kaching, capi });
 }
