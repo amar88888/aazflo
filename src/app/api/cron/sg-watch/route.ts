@@ -9,13 +9,15 @@ const PUR = new Set(["purchase", "omni_purchase", "offsite_conversion.fb_pixel_p
 const SG_CAMPAIGN = "120251751539750356"; // FACELIM SG - LIVE 7 OKT
 
 // Ambang "sihat" SG (selepas trim + cap auto-profit RM800).
-const CPP_OK = 50; // CPP <= ni = efisien (19 Okt SG RM43)
-const CPP_BAD = 65; // CPP >= ni = mahal balik (20 Okt SG RM71 — tepu)
+// Nilai asal dikira bila Purchase SG BERGANDA (PixelYourSite). 24 Okt plugin dibuang → purchase 1x:
+// CPP sebenar ×2, ROAS sebenar ×0.5 — ambang diselaraskan supaya tindakan sama dengan dulu.
+const CPP_OK = 100; // dulu 50 (19 Okt SG RM43 berganda)
+const CPP_BAD = 130; // dulu 65 (20 Okt SG RM71 berganda — tepu)
 
 // Ambang AUTO-CUT — SG betul-betul bleeding → pause SENDIRI hari tu (dayparting cuba balik esok).
 const CUT_MIN_SPEND = 300; // cukup belanja utk nilai (elak cut pagi palsu)
-const CUT_ROAS = 1.5; // ROAS bawah ni = bawah breakeven = rugi
-const CUT_CPP = 85; // CPP atas ni = terlalu mahal, bakar
+const CUT_ROAS = 0.75; // dulu 1.5 berganda — ROAS bawah ni = bawah breakeven = rugi
+const CUT_CPP = 170; // dulu 85 berganda — CPP atas ni = terlalu mahal, bakar
 
 function ymd(offset = 0): string {
   const d = new Date(Date.now() + 8 * 3600 * 1000);
