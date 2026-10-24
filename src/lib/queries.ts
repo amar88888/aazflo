@@ -129,6 +129,11 @@ export type DashboardData = {
   marginPct: number;
   adsSpend: number;
   roas: number | null;
+  // Pecahan untung: Sales − iklan = Nett Sales; − kos produk − shipping/fee − kos lain = Profit Bersih
+  nettSales: number;
+  cogsTotal: number;
+  shipFeeTotal: number;
+  otherExpenses: number;
   periodDays: number;
   revenueDeltaPct: number | null;
   profitDeltaPct: number | null;
@@ -213,6 +218,8 @@ export async function getDashboardData(r: DashRange): Promise<DashboardData> {
   const profit = grossProfit - totalExpenses;
   const adsSpend = periodExpenses.filter((e) => e.type === "ads").reduce((s, e) => s + e.amount, 0);
   const roas = adsSpend > 0 ? revenue / adsSpend : null;
+  const cogsTotal = orders.reduce((s, o) => s + cogsOf(o), 0);
+  const shipFeeTotal = orders.reduce((s, o) => s + feeOf(o) + (o.shippingFee || 0), 0);
 
   // Untung BERSIH tempoh SEBELUM (tolak iklan/kos juga) — supaya delta "vs semalam"
   // banding bersih-lawan-bersih, bukan bersih-lawan-kasar (dulu buat delta nampak merudum palsu).
@@ -336,6 +343,10 @@ export async function getDashboardData(r: DashRange): Promise<DashboardData> {
     marginPct: revenue > 0 ? (profit / revenue) * 100 : 0,
     adsSpend,
     roas,
+    nettSales: revenue - adsSpend,
+    cogsTotal,
+    shipFeeTotal,
+    otherExpenses: totalExpenses - adsSpend,
     periodDays: Math.max(1, differenceInCalendarDays(r.to, floor) + 1),
     revenueDeltaPct: delta(revenue, sumRev(prevOrders)),
     profitDeltaPct: delta(profit, prevNetProfit),

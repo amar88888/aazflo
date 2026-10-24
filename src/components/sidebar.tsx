@@ -15,7 +15,6 @@ import {
   Megaphone,
   Settings,
   Banknote,
-  BellRing,
   LogOut,
   X,
 } from "lucide-react";
@@ -23,7 +22,6 @@ import { Logo } from "@/components/logo";
 
 const NAV = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard, staff: false },
-  { href: "/kaching", label: "Ka-Ching Live", icon: BellRing, staff: false },
   // — Duit & untung (fokus utama) —
   { href: "/pnl", label: "Profit & Loss", icon: Calculator, staff: false },
   { href: "/cashflow", label: "Cashflow COD", icon: Banknote, staff: false },
