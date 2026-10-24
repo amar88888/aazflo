@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getMetaCreds } from "@/lib/integrations/meta-ads";
 import { sendTelegram } from "@/lib/telegram";
+import { getSetting, setSetting } from "@/lib/settings";
 
 export const dynamic = "force-dynamic";
 
@@ -27,8 +28,14 @@ export async function GET(req: Request) {
   if (!cfg) return NextResponse.json({ ok: false, message: "Meta belum di-setup" }, { status: 400 });
   const { accessToken } = cfg;
 
+  // 🔒 SG HOLD — 25 Okt SG bakar RM410/hari utk 1-2 order sebenar. Kekal tutup sampai ada creative SG untung.
+  // ?hold=1 kunci, ?hold=0 buka balik (owner setuju dulu).
+  const holdParam = url.searchParams.get("hold");
+  if (holdParam === "1" || holdParam === "0") await setSetting("sg_hold", holdParam);
+  const hold = (await getSetting("sg_hold")) === "1";
+
   const day = new Date(Date.now() + 8 * 3600 * 1000).getUTCDay(); // hari MYT
-  const shouldRun = RUN_DAYS.has(day);
+  const shouldRun = RUN_DAYS.has(day) && !hold;
 
   const get = async () => {
     const r = await fetch(`${GRAPH}/${SG_CAMPAIGN}?fields=effective_status&access_token=${accessToken}`, { cache: "no-store" });
@@ -58,5 +65,5 @@ export async function GET(req: Request) {
     }
   }
 
-  return NextResponse.json({ ok: true, day: DAYNAME[day], shouldRun, wasStatus: cur, action });
+  return NextResponse.json({ ok: true, day: DAYNAME[day], hold, shouldRun, wasStatus: cur, action });
 }
