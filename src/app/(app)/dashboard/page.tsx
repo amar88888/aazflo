@@ -41,14 +41,12 @@ function Delta({ v, label }: { v: number | null; label: string }) {
 
 // Kad KPI padat — susunan ikut aliran duit: Sales → Iklan → Nett Sales → Profit Bersih
 function Kpi({
-  step,
   label,
   value,
   tone = "text-white",
   highlight,
   children,
 }: {
-  step: string;
   label: string;
   value: string;
   tone?: string;
@@ -59,10 +57,7 @@ function Kpi({
     highlight === "green" ? "ring-1 ring-emerald-400/40" : highlight === "red" ? "ring-1 ring-rose-400/40" : "";
   return (
     <div className={`stat-card relative overflow-hidden rounded-2xl p-4 sm:p-5 ${ring}`}>
-      <p className="t-label flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider">
-        <span className="text-slate-500">{step}</span>
-        {label}
-      </p>
+      <p className="t-label text-[11px] font-semibold uppercase tracking-wider">{label}</p>
       <p className={`stat-value mt-1.5 text-xl font-bold tracking-tight tabular-nums sm:text-2xl ${tone}`}>{value}</p>
       {children}
     </div>
@@ -157,18 +152,18 @@ export default async function DashboardPage({
 
       {/* 1) Aliran duit: Sales → Iklan → Nett Sales → Profit Bersih */}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Kpi step="1" label="Sales" value={rm0(d.revenue)}>
+        <Kpi label="Sales" value={rm0(d.revenue)}>
           <Delta v={d.revenueDeltaPct} label={d.deltaLabel} />
         </Kpi>
-        <Kpi step="2" label="Duit Iklan" value={rm0(d.adsSpend)} tone="text-rose-200">
+        <Kpi label="Duit Iklan" value={rm0(d.adsSpend)} tone="text-rose-200">
           <p className={`mt-1 text-xs font-medium ${d.roas !== null && d.roas < 1.65 ? "text-rose-300" : "text-emerald-300"}`}>
             {d.roas !== null ? `ROAS ${d.roas.toFixed(2)}×` : "Tiada belanja"}
           </p>
         </Kpi>
-        <Kpi step="3" label="Nett Sales" value={rm0(d.nettSales)}>
+        <Kpi label="Nett Sales" value={rm0(d.nettSales)}>
           <p className="t-sub mt-1 text-xs">Sales tolak iklan</p>
         </Kpi>
-        <Kpi step="4" label="Profit Bersih" value={rm0(d.profit)} tone={profitTone} highlight={d.profit >= 0 ? "green" : "red"}>
+        <Kpi label="Profit Bersih" value={rm0(d.profit)} tone={profitTone} highlight={d.profit >= 0 ? "green" : "red"}>
           <Delta v={d.profitDeltaPct} label={d.deltaLabel} />
           <p className="t-sub text-xs">Margin {formatPercent(d.marginPct)}</p>
         </Kpi>
