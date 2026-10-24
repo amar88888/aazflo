@@ -60,7 +60,7 @@ export function Sidebar({
         style={{ paddingTop: "calc(env(safe-area-inset-top) + 1.25rem)" }}
       >
         <div>
-          <Logo />
+          <Logo dark />
           {role === "staff" && (
             <span className="mt-2 inline-flex rounded-full bg-white/15 px-2.5 py-0.5 text-[11px] font-medium text-indigo-100">
               Akaun Staff · akses terhad

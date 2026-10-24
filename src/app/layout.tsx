@@ -1,11 +1,10 @@
 import type { Metadata, Viewport } from "next";
-import { Sora, Space_Grotesk, JetBrains_Mono } from "next/font/google";
+import { Michroma, Space_Grotesk, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { PwaRegister } from "@/components/pwa-register";
 
-// Logo AAZFLO — Sora tebal (huruf A ikon & nama di login)
-const brandFont = Sora({
-  weight: "700",
+const brandFont = Michroma({
+  weight: "400",
   subsets: ["latin"],
   variable: "--font-brand",
   display: "swap",
