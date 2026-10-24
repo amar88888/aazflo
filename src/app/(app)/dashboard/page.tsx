@@ -7,19 +7,12 @@ import {
 } from "@/lib/queries";
 import { PeriodPicker } from "./period-picker";
 import { formatRM, formatPercent, formatDateTime } from "@/lib/format";
-import {
-  PLATFORM_LABELS,
-  ORDER_STATUSES,
-  ORDER_STATUS_LABELS,
-  PROFIT_TARGET,
-  type Platform,
-  type OrderStatus,
-} from "@/lib/constants";
-import { PageHeader, Card, StatCard, Badge } from "@/components/ui";
-import { RevenueProfitChart, PlatformRevenueChart } from "@/components/charts";
-import { PlatformBadge } from "@/components/platform-icon";
-import { Wallet, TrendingUp, ShoppingBag, Percent, Printer, RotateCcw, PackageOpen, Megaphone, CreditCard } from "lucide-react";
+import { ORDER_STATUSES, ORDER_STATUS_LABELS, PROFIT_TARGET, type OrderStatus } from "@/lib/constants";
+import { PageHeader, Card, Badge } from "@/components/ui";
+import { RevenueProfitChart } from "@/components/charts";
+import { Printer, RotateCcw, PackageOpen } from "lucide-react";
 import Link from "next/link";
+import type { ReactNode } from "react";
 
 export const dynamic = "force-dynamic";
 
@@ -32,6 +25,58 @@ const STATUS_DOT: Record<string, string> = {
   completed: "bg-emerald-400",
   cancelled: "bg-slate-700",
 };
+
+// RM tanpa sen — untuk angka besar di kad (muat 2 lajur di telefon)
+const rm0 = (v: number) => `${v < 0 ? "-" : ""}RM ${Math.abs(v).toLocaleString("en-MY", { maximumFractionDigits: 0 })}`;
+const pctOf = (v: number, total: number) => (total > 0 ? (v / total) * 100 : 0);
+
+function Delta({ v, label }: { v: number | null; label: string }) {
+  if (v == null) return null;
+  return (
+    <p className={`mt-1 text-xs font-medium ${v >= 0 ? "text-emerald-300" : "text-rose-300"}`}>
+      {v >= 0 ? "▲" : "▼"} {Math.abs(v).toFixed(0)}% <span className="t-sub font-normal">{label}</span>
+    </p>
+  );
+}
+
+// Kad KPI padat — susunan ikut aliran duit: Sales → Iklan → Nett Sales → Profit Bersih
+function Kpi({
+  step,
+  label,
+  value,
+  tone = "text-white",
+  highlight,
+  children,
+}: {
+  step: string;
+  label: string;
+  value: string;
+  tone?: string;
+  highlight?: "green" | "red";
+  children?: ReactNode;
+}) {
+  const ring =
+    highlight === "green" ? "ring-1 ring-emerald-400/40" : highlight === "red" ? "ring-1 ring-rose-400/40" : "";
+  return (
+    <div className={`stat-card relative overflow-hidden rounded-2xl p-4 sm:p-5 ${ring}`}>
+      <p className="t-label flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider">
+        <span className="text-slate-500">{step}</span>
+        {label}
+      </p>
+      <p className={`stat-value mt-1.5 text-xl font-bold tracking-tight tabular-nums sm:text-2xl ${tone}`}>{value}</p>
+      {children}
+    </div>
+  );
+}
+
+function SectionTitle({ children, right }: { children: ReactNode; right?: ReactNode }) {
+  return (
+    <div className="mb-3 flex items-center justify-between gap-2">
+      <h2 className="text-sm font-semibold text-slate-700">{children}</h2>
+      {right && <div className="text-xs text-slate-400">{right}</div>}
+    </div>
+  );
+}
 
 export default async function DashboardPage({
   searchParams,
@@ -64,22 +109,40 @@ export default async function DashboardPage({
     d.lowStockCount > 0 && { href: "/ops", icon: PackageOpen, color: "amber", text: `${d.lowStockCount} barang stok rendah` },
   ].filter(Boolean) as { href: string; icon: typeof Printer; color: string; text: string }[];
 
+  const payTotal = d.onlinePaid.orders + d.cod.orders;
+  const onlinePct = pctOf(d.onlinePaid.orders, payTotal);
+  const profitTone = d.profit >= 0 ? "text-emerald-300" : "text-rose-300";
+
+  // Target untung (ikut bilangan hari dalam tempoh)
+  const tFloor = PROFIT_TARGET.floor * d.periodDays;
+  const tGoal = PROFIT_TARGET.goal * d.periodDays;
+  const tPct = Math.max(0, Math.min(100, (d.profit / tGoal) * 100));
+  const floorMark = (tFloor / tGoal) * 100;
+  const hit = d.profit >= tGoal ? "goal" : d.profit >= tFloor ? "floor" : "below";
+
+  // Ke mana duit pergi (dari Sales)
+  const flow = [
+    { label: "Sales", v: d.revenue, sign: "", cls: "text-white" },
+    { label: "Duit iklan", v: d.adsSpend, sign: "−", cls: "text-rose-300" },
+    { label: "Kos produk", v: d.cogsTotal, sign: "−", cls: "text-rose-300" },
+    { label: "Shipping & fee", v: d.shipFeeTotal, sign: "−", cls: "text-rose-300" },
+    ...(d.otherExpenses > 0.5 ? [{ label: "Kos lain", v: d.otherExpenses, sign: "−", cls: "text-rose-300" }] : []),
+  ];
+
   return (
-    <div>
+    <div className="space-y-4">
       <PageHeader
         title="Dashboard"
-        subtitle={`${d.periodLabel} — Revenue ${formatRM(d.revenue)} · AOV ${formatRM(d.aov)}`}
+        subtitle={`${d.periodLabel} · ${d.orders} order · AOV ${formatRM(d.aov)}`}
         action={
-          <div className="flex flex-wrap items-center justify-start gap-2 sm:justify-end">
-            <div className="flex flex-wrap gap-1 rounded-lg border border-white/10 bg-white/5 p-0.5 text-sm backdrop-blur">
+          <div className="flex flex-col gap-2 sm:items-end">
+            <div className="grid grid-cols-3 gap-1 rounded-lg border border-white/10 bg-white/5 p-0.5 text-sm backdrop-blur sm:flex">
               {DASHBOARD_PERIODS.map((p) => (
                 <Link
                   key={p.key}
                   href={`/dashboard?p=${p.key}`}
-                  className={`rounded-md px-2.5 py-1.5 font-medium transition-colors ${
-                    !activeCustom && activePreset === p.key
-                      ? "text-white"
-                      : "text-slate-300 hover:bg-white/10"
+                  className={`whitespace-nowrap rounded-md px-2.5 py-1.5 text-center font-medium transition-colors ${
+                    !activeCustom && activePreset === p.key ? "text-white" : "text-slate-300 hover:bg-white/10"
                   }`}
                   style={!activeCustom && activePreset === p.key ? { background: "rgb(var(--m2-rgb))" } : undefined}
                 >
@@ -92,212 +155,131 @@ export default async function DashboardPage({
         }
       />
 
-      {/* KPI ikut tempoh dipilih, banding tempoh sebelum */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
-        <StatCard
-          label={`Revenue (${d.periodLabel})`}
-          value={formatRM(d.revenue)}
-          icon={Wallet}
-          tone="violet"
-          delta={d.revenueDeltaPct}
-          deltaLabel={d.deltaLabel}
-        />
-        <StatCard
-          label={`Untung Bersih (${d.periodLabel})`}
-          value={formatRM(d.profit)}
-          icon={TrendingUp}
-          tone="emerald"
-          accent={d.profit >= 0 ? "green" : "red"}
-          delta={d.profitDeltaPct}
-          deltaLabel={d.deltaLabel}
-        />
-        <StatCard
-          label={`Belanja Iklan (${d.periodLabel})`}
-          value={formatRM(d.adsSpend)}
-          sub={d.roas !== null ? `ROAS ${d.roas.toFixed(2)}×` : "Tiada belanja"}
-          icon={Megaphone}
-          tone="amber"
-          accent={d.roas !== null && d.roas < 1.65 ? "red" : "green"}
-        />
-        <StatCard
-          label={`Order (${d.periodLabel})`}
-          value={String(d.orders)}
-          icon={ShoppingBag}
-          tone="cyan"
-          delta={d.ordersDeltaPct}
-          deltaLabel={d.deltaLabel}
-        />
-        <StatCard
-          label={`Dah Bayar Online (${d.periodLabel})`}
-          value={formatRM(d.onlinePaid.revenue)}
-          sub={`${d.onlinePaid.orders} order · COD ${d.cod.orders} (${formatRM(d.cod.revenue)})`}
-          icon={CreditCard}
-          tone="emerald"
-          accent="green"
-        />
-        <StatCard
-          label="Margin Untung"
-          value={formatPercent(d.marginPct)}
-          sub={`AOV ${formatRM(d.aov)}`}
-          icon={Percent}
-          tone="amber"
-          accent={d.marginPct >= 0 ? "green" : "red"}
-        />
+      {/* 1) Aliran duit: Sales → Iklan → Nett Sales → Profit Bersih */}
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <Kpi step="1" label="Sales" value={rm0(d.revenue)}>
+          <Delta v={d.revenueDeltaPct} label={d.deltaLabel} />
+        </Kpi>
+        <Kpi step="2" label="Duit Iklan" value={rm0(d.adsSpend)} tone="text-rose-200">
+          <p className={`mt-1 text-xs font-medium ${d.roas !== null && d.roas < 1.65 ? "text-rose-300" : "text-emerald-300"}`}>
+            {d.roas !== null ? `ROAS ${d.roas.toFixed(2)}×` : "Tiada belanja"}
+          </p>
+        </Kpi>
+        <Kpi step="3" label="Nett Sales" value={rm0(d.nettSales)}>
+          <p className="t-sub mt-1 text-xs">Sales tolak iklan</p>
+        </Kpi>
+        <Kpi step="4" label="Profit Bersih" value={rm0(d.profit)} tone={profitTone} highlight={d.profit >= 0 ? "green" : "red"}>
+          <Delta v={d.profitDeltaPct} label={d.deltaLabel} />
+          <p className="t-sub text-xs">Margin {formatPercent(d.marginPct)}</p>
+        </Kpi>
       </div>
 
-      {/* 🎯 Target untung — kejar sasaran harian */}
-      {(() => {
-        const tFloor = PROFIT_TARGET.floor * d.periodDays;
-        const tGoal = PROFIT_TARGET.goal * d.periodDays;
-        const pct = Math.max(0, Math.min(100, (d.profit / tGoal) * 100));
-        const floorMark = (tFloor / tGoal) * 100;
-        const hit = d.profit >= tGoal ? "goal" : d.profit >= tFloor ? "floor" : "below";
-        const barCol = hit === "below" ? "bg-rose-500" : hit === "floor" ? "bg-amber-400" : "bg-emerald-500";
-        return (
-          <Card className="mt-4">
-            <div className="mb-2 flex items-center justify-between">
-              <h2 className="text-sm font-semibold text-slate-700">🎯 Target Untung ({d.periodLabel})</h2>
-              <span className={`text-sm font-bold ${hit === "below" ? "text-rose-400" : "text-emerald-400"}`}>
-                {formatRM(d.profit)} / {formatRM(tGoal)}
+      {/* 2) Cara bayar + Target */}
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <Card>
+          <SectionTitle right={`${payTotal} order`}>💳 Cara Bayar</SectionTitle>
+          <div className="flex h-2.5 w-full overflow-hidden rounded-full bg-white/10">
+            <div className="h-full bg-emerald-400" style={{ width: `${onlinePct}%` }} />
+            <div className="h-full bg-amber-400" style={{ width: `${payTotal ? 100 - onlinePct : 0}%` }} />
+          </div>
+          <div className="mt-4 grid grid-cols-2 gap-4">
+            <div>
+              <p className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-emerald-300">
+                <span className="h-2 w-2 rounded-full bg-emerald-400" /> Online
+              </p>
+              <p className="mt-1 text-lg font-bold tabular-nums text-white">{rm0(d.onlinePaid.revenue)}</p>
+              <p className="t-sub text-xs">
+                {d.onlinePaid.orders} order · {formatPercent(onlinePct)}
+              </p>
+              <p className="t-sub text-[11px]">Duit dah masuk</p>
+            </div>
+            <div>
+              <p className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-amber-300">
+                <span className="h-2 w-2 rounded-full bg-amber-400" /> COD
+              </p>
+              <p className="mt-1 text-lg font-bold tabular-nums text-white">{rm0(d.cod.revenue)}</p>
+              <p className="t-sub text-xs">
+                {d.cod.orders} order · {formatPercent(payTotal ? 100 - onlinePct : 0)}
+              </p>
+              <p className="t-sub text-[11px]">Kutip masa hantar</p>
+            </div>
+          </div>
+          {d.payUnknown > 0 && (
+            <p className="mt-3 text-[11px] text-slate-500">{d.payUnknown} order belum ada data bayaran (terisi lepas sync Woo).</p>
+          )}
+        </Card>
+
+        <Card>
+          <SectionTitle right={`min ${rm0(tFloor)} · sasaran ${rm0(tGoal)}`}>🎯 Target Untung</SectionTitle>
+          <p className={`text-2xl font-bold tabular-nums ${hit === "below" ? "text-rose-300" : "text-emerald-300"}`}>
+            {rm0(d.profit)} <span className="text-sm font-medium text-slate-400">/ {rm0(tGoal)}</span>
+          </p>
+          <div className="relative mt-3 h-2.5 w-full overflow-hidden rounded-full bg-white/10">
+            <div
+              className={`h-full rounded-full ${hit === "below" ? "bg-rose-500" : hit === "floor" ? "bg-amber-400" : "bg-emerald-500"}`}
+              style={{ width: `${tPct}%` }}
+            />
+            <div className="absolute top-0 h-full w-0.5 bg-white/70" style={{ left: `${floorMark}%` }} />
+          </div>
+          <p className="mt-2 text-xs text-slate-400">
+            {hit === "goal"
+              ? "🏆 Sasaran tercapai."
+              : hit === "floor"
+                ? `✅ Lepas minimum. ${rm0(tGoal - d.profit)} lagi ke sasaran.`
+                : `${rm0(tFloor - d.profit)} lagi ke minimum ${rm0(tFloor)}.`}
+          </p>
+        </Card>
+      </div>
+
+      {/* 3) Ke mana duit pergi + Trend */}
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+        <Card>
+          <SectionTitle>Ke Mana Duit Pergi</SectionTitle>
+          <div className="space-y-2.5">
+            {flow.map((f) => (
+              <div key={f.label}>
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-slate-600">
+                    {f.sign && <span className="mr-1 text-slate-500">{f.sign}</span>}
+                    {f.label}
+                  </span>
+                  <span className={`tabular-nums font-medium ${f.cls}`}>
+                    {formatRM(f.v)} <span className="text-xs text-slate-500">{formatPercent(pctOf(f.v, d.revenue))}</span>
+                  </span>
+                </div>
+                <div className="mt-1 h-1 w-full overflow-hidden rounded-full bg-white/10">
+                  <div
+                    className={`h-full rounded-full ${f.sign ? "bg-rose-400/70" : "bg-slate-300"}`}
+                    style={{ width: `${Math.min(100, pctOf(f.v, d.revenue))}%` }}
+                  />
+                </div>
+              </div>
+            ))}
+            <div className="flex items-center justify-between border-t border-white/10 pt-2.5 text-sm">
+              <span className="font-semibold text-slate-700">= Profit Bersih</span>
+              <span className={`tabular-nums font-bold ${profitTone}`}>
+                {formatRM(d.profit)} <span className="text-xs text-slate-500">{formatPercent(d.marginPct)}</span>
               </span>
             </div>
-            <div className="relative h-3 w-full overflow-hidden rounded-full bg-white/10">
-              <div className={`h-full rounded-full ${barCol}`} style={{ width: `${pct}%` }} />
-              <div className="absolute top-0 h-full w-0.5 bg-white/70" style={{ left: `${floorMark}%` }} />
-            </div>
-            <p className="mt-2 text-xs text-slate-400">
-              {hit === "goal"
-                ? "🏆 Target tercapai! Terbaik bro!"
-                : hit === "floor"
-                  ? `✅ Dah lepas minimum. ${formatRM(tGoal - d.profit)} lagi untuk cecah sasaran ${formatRM(tGoal)}.`
-                  : `🔴 ${formatRM(tFloor - d.profit)} lagi untuk cecah minimum ${formatRM(tFloor)}.`}{" "}
-              <span className="text-slate-500">(garis putih = minimum {formatRM(tFloor)})</span>
-            </p>
-          </Card>
-        );
-      })()}
-
-      {/* 💳 Customer dah bayar online — duit dah masuk, tak risiko COD tolak */}
-      <Card className="mt-4 !p-0">
-        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 px-5 py-4">
-          <h2 className="text-sm font-semibold text-slate-700">💳 Customer Dah Bayar Online ({d.periodLabel})</h2>
-          <span className="text-xs text-slate-400">
-            {d.onlinePaid.orders} online · {d.cod.orders} COD
-            {d.onlinePaid.orders + d.cod.orders > 0 &&
-              ` · ${formatPercent((d.onlinePaid.orders / (d.onlinePaid.orders + d.cod.orders)) * 100)} online`}
-          </span>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <tbody>
-              {d.onlinePaidList.map((o) => (
-                <tr key={o.id} className="border-b border-white/5 last:border-0 hover:bg-white/5">
-                  <td className="px-5 py-3">
-                    <p className="font-medium text-slate-800">{o.buyerName ?? "-"}</p>
-                    <p className="text-xs text-slate-400">
-                      #{o.platformOrderId} · {o.store}
-                    </p>
-                  </td>
-                  <td className="px-5 py-3">
-                    <Badge color="green">{o.method}</Badge>
-                  </td>
-                  <td className="whitespace-nowrap px-5 py-3 text-right font-semibold tabular-nums text-emerald-500">
-                    {formatRM(o.total)}
-                  </td>
-                  <td className="whitespace-nowrap px-5 py-3 text-right text-xs text-slate-500">{formatDateTime(o.paidAt)}</td>
-                </tr>
-              ))}
-              {d.onlinePaidList.length === 0 && (
-                <tr>
-                  <td className="px-5 py-6 text-center text-slate-400">Belum ada bayaran online dalam tempoh ni</td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-        {d.payUnknown > 0 && (
-          <p className="border-t border-slate-200 px-5 py-2 text-xs text-slate-500">
-            {d.payUnknown} order belum ada data bayaran — akan terisi selepas sync Woo seterusnya.
-          </p>
-        )}
-      </Card>
-
-      {/* Nota: Aazflo = angka sebenar (order Woo). Meta Ads Manager tunjuk lebih (attribution). */}
-      <p className="mt-3 flex items-center gap-1.5 text-xs text-slate-400">
-        <span className="inline-block h-1.5 w-1.5 rounded-full bg-emerald-400" />
-        Angka ni <b className="font-semibold text-slate-300">SEBENAR</b> dari order Woo. Meta Ads Manager akan tunjuk lebih (attribution) — untuk untung, percaya sini.
-      </p>
-
-      {/* Alert strip — actionable */}
-      {alerts.length > 0 && (
-        <div className="mt-4 flex flex-wrap gap-3">
-          {alerts.map((a, i) => {
-            const Icon = a.icon;
-            const cls: Record<string, string> = {
-              orange: "border-orange-400/30 bg-orange-500/10 text-orange-300 hover:bg-orange-500/20",
-              red: "border-rose-400/30 bg-rose-500/10 text-rose-300 hover:bg-rose-500/20",
-              amber: "border-amber-400/30 bg-amber-500/10 text-amber-300 hover:bg-amber-500/20",
-            };
-            return (
-              <Link key={i} href={a.href} className={`flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-medium ${cls[a.color]}`}>
-                <Icon size={15} /> {a.text}
-              </Link>
-            );
-          })}
-        </div>
-      )}
-
-      {/* Trend + Pipeline */}
-      <div className="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-3">
-        <Card className="lg:col-span-2">
-          <h2 className="mb-4 text-sm font-semibold text-slate-700">Revenue vs Untung Bersih (harian)</h2>
-          <RevenueProfitChart data={d.dailyTrend} />
-        </Card>
-        <Card>
-          <h2 className="mb-4 text-sm font-semibold text-slate-700">Pipeline Order</h2>
-          <div className="space-y-2.5">
-            {ORDER_STATUSES.map((s) => {
-              const count = d.statusCounts[s] ?? 0;
-              const total = Object.values(d.statusCounts).reduce((a, b) => a + b, 0) || 1;
-              const pct = (count / total) * 100;
-              return (
-                <div key={s}>
-                  <div className="mb-1 flex items-center justify-between text-sm">
-                    <span className="flex items-center gap-2 text-slate-600">
-                      <span className={`h-2.5 w-2.5 rounded-full ${STATUS_DOT[s] ?? "bg-slate-400"}`} />
-                      {ORDER_STATUS_LABELS[s]}
-                    </span>
-                    <span className="font-semibold text-slate-800">{count}</span>
-                  </div>
-                  <div className="h-1.5 w-full overflow-hidden rounded-full bg-white/10">
-                    <div className={`h-full rounded-full ${STATUS_DOT[s] ?? "bg-slate-400"}`} style={{ width: `${pct}%` }} />
-                  </div>
-                </div>
-              );
-            })}
-            {d.returnsToHandle > 0 && (
-              <div className="mt-3 flex items-center justify-between rounded-lg bg-rose-500/10 ring-1 ring-rose-400/20 px-3 py-2 text-sm">
-                <span className="flex items-center gap-2 text-rose-300">
-                  <RotateCcw size={14} /> Return perlu urus
-                </span>
-                <span className="font-semibold text-rose-300">{d.returnsToHandle}</span>
-              </div>
-            )}
           </div>
+        </Card>
+        <Card className="lg:col-span-2">
+          <SectionTitle>Trend Sales & Untung Kasar</SectionTitle>
+          <RevenueProfitChart data={d.dailyTrend} />
         </Card>
       </div>
 
-      {/* Platform profit + Best sellers by profit */}
-      <div className="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-2">
+      {/* 4) Ikut kedai + Produk */}
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <Card>
-          <h2 className="mb-4 text-sm font-semibold text-slate-700">Order &amp; Untung Ikut Kedai</h2>
+          <SectionTitle>Untung Ikut Kedai</SectionTitle>
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-slate-200 text-left text-xs uppercase tracking-wide text-slate-500">
                 <th className="pb-2">Kedai</th>
                 <th className="pb-2 pl-3 text-right">Order</th>
-                <th className="pb-2 pl-3 text-right">Revenue</th>
-                <th className="pb-2 pl-4 text-right">Untung bersih</th>
+                <th className="pb-2 pl-3 text-right">Sales</th>
+                <th className="pb-2 pl-3 text-right">Profit</th>
               </tr>
             </thead>
             <tbody>
@@ -305,14 +287,14 @@ export default async function DashboardPage({
                 <tr key={s.store} className="border-b border-slate-100 last:border-0">
                   <td className="py-2.5 pr-2">
                     <p className="font-medium text-slate-800">{s.label}</p>
-                    {s.adsSpend > 0 && <p className="text-xs text-slate-400">− iklan {formatRM(s.adsSpend)}</p>}
+                    {s.adsSpend > 0 && <p className="text-xs text-slate-400">iklan {rm0(s.adsSpend)}</p>}
                   </td>
-                  <td className="py-2.5 pl-3 text-right font-semibold tabular-nums">{s.orders}</td>
-                  <td className="whitespace-nowrap py-2.5 pl-3 text-right tabular-nums">{formatRM(s.revenue)}</td>
+                  <td className="py-2.5 pl-3 text-right tabular-nums">{s.orders}</td>
+                  <td className="whitespace-nowrap py-2.5 pl-3 text-right tabular-nums">{rm0(s.revenue)}</td>
                   <td
-                    className={`whitespace-nowrap py-2.5 pl-4 text-right font-semibold tabular-nums ${s.netProfit >= 0 ? "text-emerald-600" : "text-rose-500"}`}
+                    className={`whitespace-nowrap py-2.5 pl-3 text-right font-semibold tabular-nums ${s.netProfit >= 0 ? "text-emerald-500" : "text-rose-400"}`}
                   >
-                    {formatRM(s.netProfit)}
+                    {rm0(s.netProfit)}
                   </td>
                 </tr>
               ))}
@@ -325,26 +307,21 @@ export default async function DashboardPage({
           </table>
         </Card>
         <Card>
-          <h2 className="mb-4 text-sm font-semibold text-slate-700">Produk Paling Untung (Top 5)</h2>
+          <SectionTitle>Produk Paling Untung</SectionTitle>
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-slate-200 text-left text-xs uppercase tracking-wide text-slate-500">
                 <th className="pb-2">Produk</th>
                 <th className="pb-2 pl-3 text-right">Unit</th>
-                <th className="pb-2 pl-4 text-right">Untung</th>
+                <th className="pb-2 pl-3 text-right">Untung kasar</th>
               </tr>
             </thead>
             <tbody>
               {d.bestSellers.map((p) => (
                 <tr key={p.sku} className="border-b border-slate-100 last:border-0">
-                  <td className="py-2.5 pr-2">
-                    <p className="font-medium text-slate-800">{p.name}</p>
-                    <p className="text-xs text-slate-400">{p.sku}</p>
-                  </td>
+                  <td className="py-2.5 pr-2 font-medium text-slate-800">{p.name}</td>
                   <td className="py-2.5 pl-3 text-right tabular-nums">{p.quantity}</td>
-                  <td className="whitespace-nowrap py-2.5 pl-4 text-right font-semibold tabular-nums text-emerald-600">
-                    {formatRM(p.profit)}
-                  </td>
+                  <td className="whitespace-nowrap py-2.5 pl-3 text-right font-semibold tabular-nums text-emerald-500">{rm0(p.profit)}</td>
                 </tr>
               ))}
               {d.bestSellers.length === 0 && (
@@ -357,56 +334,134 @@ export default async function DashboardPage({
         </Card>
       </div>
 
-      {/* Revenue per platform + Recent orders */}
-      <div className="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-3">
-        <Card>
-          <h2 className="mb-4 text-sm font-semibold text-slate-700">Revenue Per Platform</h2>
-          <PlatformRevenueChart data={d.byPlatform} />
-        </Card>
-        <Card className="lg:col-span-2 !p-0">
-          <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
-            <h2 className="text-sm font-semibold text-slate-700">Order Terkini</h2>
-            <Link href="/orders" className="text-xs font-medium text-violet-600 hover:underline">
-              Lihat semua →
-            </Link>
+      {/* 5) Customer bayar online + Order terkini */}
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <Card className="!p-0">
+          <div className="border-b border-slate-200 px-5 py-4">
+            <SectionTitle right={`${d.onlinePaid.orders} order`}>Customer Dah Bayar Online</SectionTitle>
           </div>
-          <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <tbody>
-              {d.recentOrders.map((o) => (
-                <tr key={o.id} className="border-b border-white/5 last:border-0 hover:bg-white/5">
-                  <td className="px-5 py-3">
-                    <p className="font-medium text-slate-800">{o.platformOrderId}</p>
-                    <p className="text-xs text-slate-400">{o.buyerName ?? "-"}</p>
+              {d.onlinePaidList.slice(0, 8).map((o) => (
+                <tr key={o.id} className="border-b border-white/5 last:border-0">
+                  <td className="px-5 py-2.5">
+                    <p className="font-medium text-slate-800">{o.buyerName ?? "-"}</p>
+                    <p className="text-xs text-slate-400">
+                      #{o.platformOrderId} · {o.method}
+                    </p>
                   </td>
-                  <td className="px-5 py-3">
-                    <PlatformBadge platform={o.platform as Platform} size={16} />
+                  <td className="whitespace-nowrap px-5 py-2.5 text-right">
+                    <p className="font-semibold tabular-nums text-emerald-500">{formatRM(o.total)}</p>
+                    <p className="text-xs text-slate-500">{formatDateTime(o.paidAt)}</p>
                   </td>
-                  <td className="px-5 py-3 text-right font-medium">
-                    {o.currency === "SGD" ? `S$${o.total.toFixed(2)}` : formatRM(o.total)}
-                  </td>
-                  <td className="px-5 py-3">
-                    <Badge color={o.status === "completed" ? "green" : o.status === "pending" ? "red" : "blue"}>
-                      {ORDER_STATUS_LABELS[o.status as OrderStatus] ?? o.status}
-                    </Badge>
-                  </td>
-                  <td className="px-5 py-3">
-                    {o.payment === "online" && <Badge color="green">Online ✓</Badge>}
-                    {o.payment === "cod" && <Badge color="orange">COD</Badge>}
-                  </td>
-                  <td className="px-5 py-3 text-right text-xs text-slate-500">{formatDateTime(o.orderedAt)}</td>
                 </tr>
               ))}
-              {d.recentOrders.length === 0 && (
+              {d.onlinePaidList.length === 0 && (
                 <tr>
-                  <td className="px-5 py-8 text-center text-slate-400">Belum ada order</td>
+                  <td className="px-5 py-6 text-center text-slate-400">Belum ada bayaran online</td>
                 </tr>
               )}
             </tbody>
           </table>
+        </Card>
+        <Card className="!p-0">
+          <div className="border-b border-slate-200 px-5 py-4">
+            <SectionTitle
+              right={
+                <Link href="/orders" className="font-medium text-violet-400 hover:underline">
+                  Lihat semua →
+                </Link>
+              }
+            >
+              Order Terkini
+            </SectionTitle>
           </div>
+          <table className="w-full text-sm">
+            <tbody>
+              {d.recentOrders.map((o) => (
+                <tr key={o.id} className="border-b border-white/5 last:border-0">
+                  <td className="px-5 py-2.5">
+                    <p className="font-medium text-slate-800">{o.buyerName ?? "-"}</p>
+                    <p className="text-xs text-slate-400">
+                      #{o.platformOrderId} · {formatDateTime(o.orderedAt)}
+                    </p>
+                  </td>
+                  <td className="whitespace-nowrap px-5 py-2.5 text-right">
+                    <p className="font-semibold tabular-nums text-slate-800">
+                      {o.currency === "SGD" ? `S$${o.total.toFixed(2)}` : formatRM(o.total)}
+                    </p>
+                    <div className="mt-0.5 flex justify-end gap-1">
+                      {o.payment === "online" && <Badge color="green">Online</Badge>}
+                      {o.payment === "cod" && <Badge color="orange">COD</Badge>}
+                      <Badge color={o.status === "completed" ? "green" : o.status === "pending" ? "red" : "blue"}>
+                        {ORDER_STATUS_LABELS[o.status as OrderStatus] ?? o.status}
+                      </Badge>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+              {d.recentOrders.length === 0 && (
+                <tr>
+                  <td className="px-5 py-6 text-center text-slate-400">Belum ada order</td>
+                </tr>
+              )}
+            </tbody>
+          </table>
         </Card>
       </div>
+
+      {/* 6) Operasi: amaran + pipeline */}
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+        <Card className="lg:col-span-2">
+          <SectionTitle>Pipeline Order</SectionTitle>
+          <div className="grid grid-cols-2 gap-x-6 gap-y-2.5 sm:grid-cols-3">
+            {ORDER_STATUSES.map((s) => {
+              const count = d.statusCounts[s] ?? 0;
+              const total = Object.values(d.statusCounts).reduce((a, b) => a + b, 0) || 1;
+              return (
+                <div key={s}>
+                  <div className="mb-1 flex items-center justify-between text-sm">
+                    <span className="flex items-center gap-2 text-slate-600">
+                      <span className={`h-2 w-2 rounded-full ${STATUS_DOT[s] ?? "bg-slate-400"}`} />
+                      {ORDER_STATUS_LABELS[s]}
+                    </span>
+                    <span className="font-semibold tabular-nums text-slate-800">{count}</span>
+                  </div>
+                  <div className="h-1 w-full overflow-hidden rounded-full bg-white/10">
+                    <div className={`h-full rounded-full ${STATUS_DOT[s] ?? "bg-slate-400"}`} style={{ width: `${(count / total) * 100}%` }} />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </Card>
+        <Card>
+          <SectionTitle>Perlu Tindakan</SectionTitle>
+          {alerts.length > 0 ? (
+            <div className="space-y-2">
+              {alerts.map((a, i) => {
+                const Icon = a.icon;
+                const cls: Record<string, string> = {
+                  orange: "border-orange-400/30 bg-orange-500/10 text-orange-300 hover:bg-orange-500/20",
+                  red: "border-rose-400/30 bg-rose-500/10 text-rose-300 hover:bg-rose-500/20",
+                  amber: "border-amber-400/30 bg-amber-500/10 text-amber-300 hover:bg-amber-500/20",
+                };
+                return (
+                  <Link key={i} href={a.href} className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium ${cls[a.color]}`}>
+                    <Icon size={15} /> {a.text}
+                  </Link>
+                );
+              })}
+            </div>
+          ) : (
+            <p className="text-sm text-slate-400">✅ Semua beres.</p>
+          )}
+        </Card>
+      </div>
+
+      <p className="pb-2 text-center text-[11px] text-slate-500">
+        Angka sebenar dari order Woo. Meta Ads Manager tunjuk lebih (attribution) — untuk untung, percaya sini.
+      </p>
     </div>
   );
 }
