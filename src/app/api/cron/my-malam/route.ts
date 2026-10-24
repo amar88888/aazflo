@@ -9,7 +9,7 @@ const GRAPH = "https://graph.facebook.com/v21.0";
 const MY_ADSET = "120251722984390356"; // FACELIM MY broad
 const FLAG = "my_malam_paused"; // "1" = adset di-pause oleh rule malam ni (bukan manual)
 
-// 🌙 MY REHAT MALAM — 12 malam–6 pagi MY bakar ~RM210 utk 2-4 sale (CPP RM70-100 vs siang RM25-30).
+// 🌙 MY REHAT MALAM (live 24 Okt) — 12 malam–6 pagi MY bakar ~RM210 utk 2-4 sale (CPP RM70-100 vs siang RM25-30).
 // Pause adset waktu malam; daily budget kemudian dibelanja waktu siang yang lebih murah.
 //   ?action=rest  → pause (00:02)   ?action=wake → hidup balik (06:00, ulang 06:20 & 07:00 sbg backup)
 // Wake HANYA kalau rule ni yang pause (flag) — tak hidupkan adset yang di-pause manual.
