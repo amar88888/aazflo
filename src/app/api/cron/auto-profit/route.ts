@@ -21,7 +21,7 @@ const CAP_TOTAL = 2100;      // cap budget harian semua adset (RM)
 const SG_ADSET_CAP = 600;    // cap SG (market kecil/tepu) — 17 Okt RM600 = 9.1x; RM815+ ROAS jatuh
 // Cap ikut adset (id) — MY sweet spot RM700-1,150; TEST tak di-scale (tugas dia cari winner, bukan volume).
 const ADSET_CAP: Record<string, number> = {
-  "120251722984390356": 1200, // FACELIM MY broad
+  "120251722984390356": 900, // FACELIM MY broad — 24 Okt: lebih RM1k, marginal ROAS < kos (MY RM1,612 = 1.34x vs RM1,024 = 1.81x)
   "120251768506270356": 300, // TEST broad MY - creative hunt
 };
 const SCALE_TODAY_MIN = 2.5; // jangan scale kalau ROAS HARI NI < ni (Meta) walau 3-hari bagus — elak scale masa burn (cth catch-up lepas billing)
