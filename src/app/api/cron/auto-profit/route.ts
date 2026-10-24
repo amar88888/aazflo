@@ -25,6 +25,9 @@ const ADSET_CAP: Record<string, number> = {
   "120251768506270356": 300, // TEST broad MY - creative hunt
 };
 const SCALE_TODAY_MIN = 2.5; // jangan scale kalau ROAS HARI NI < ni (Meta) walau 3-hari bagus — elak scale masa burn (cth catch-up lepas billing)
+// Ambang di atas dikira bila Purchase BERGANDA (PixelYourSite broadcast fbq('track') ke pixel iklan → ~2x order).
+// 24 Okt PixelYourSite dimatikan di facelim.com → pixel MY kini 1x; ambang MY/TEST × 0.5. SG (facelimsg) masih 2x.
+const pixelFactor = (adsetName: string) => (/sg/i.test(adsetName) ? 1 : 0.5);
 const SCALE_TODAY_SPEND_MIN = 100; // RM belanja hari ni minimum sebelum layak scale (ROAS hari ni mesti ada bukti)
 
 type AdRow = { id: string; name: string; status: string; adsetId: string; adsetName: string; budget: number; spend3: number; pur3: number; roas3: number; spendToday: number; purToday: number };
@@ -147,9 +150,10 @@ export async function GET(req: Request) {
       for (const a of ranked) {
         if (activeLeft <= 2) break; // sentiasa simpan >= 2 ad hidup
         if (protectedTop.has(a.id)) continue; // 2 winner dilindungi
-        const loser3d = a.spend3 >= SPEND_PAUSE_3D && a.roas3 < ROAS_PAUSE; // rugi SAH 3 hari
+        const pf = pixelFactor(a.adsetName);
+        const loser3d = a.spend3 >= SPEND_PAUSE_3D && a.roas3 < ROAS_PAUSE * pf; // rugi SAH 3 hari
         // POTONG HARI NI: bakar >= RM80 hari ni + 0 jualan + TAKDE sejarah jualan (roas3<1 = bukan winner lag)
-        const deadToday = a.spendToday >= 80 && a.purToday === 0 && a.roas3 < 1.0;
+        const deadToday = a.spendToday >= 80 && a.purToday === 0 && a.roas3 < 1.0 * pf;
         if (!loser3d && !deadToday) continue;
         if (!dryrun) {
           const r = await gpost(a.id, { status: "PAUSED" });
@@ -167,7 +171,8 @@ export async function GET(req: Request) {
       const spend3 = adsetAds.reduce((s, a) => s + a.spend3, 0);
       const val3 = adsetAds.reduce((s, a) => s + a.roas3 * a.spend3, 0);
       const roas3 = spend3 > 0 ? val3 / spend3 : 0;
-      if (roas3 < ROAS_SCALE || spend3 < SPEND_SCALE_3D) continue;
+      const pfs = pixelFactor(info.name);
+      if (roas3 < ROAS_SCALE * pfs || spend3 < SPEND_SCALE_3D) continue;
       // Jangan scale kalau HARI NI tengah burn (catch-up lepas billing, atau tepu) — walau 3-hari nampak bagus.
       const todaySpend = adsetAds.reduce((s, a) => s + (todayMap.get(a.id)?.spend ?? 0), 0);
       const todayVal = adsetAds.reduce((s, a) => s + (todayMap.get(a.id)?.val ?? 0), 0);
@@ -177,7 +182,7 @@ export async function GET(req: Request) {
         actions.push(`⏭️ "${info.name.slice(0, 24)}" skip scale — belanja hari ni RM${todaySpend.toFixed(0)}, data belum cukup`);
         continue;
       }
-      if (todayRoas < SCALE_TODAY_MIN) {
+      if (todayRoas < SCALE_TODAY_MIN * pfs) {
         actions.push(`⏭️ "${info.name.slice(0, 24)}" skip scale — hari ni ROAS ${todayRoas.toFixed(1)}x (burn)`);
         continue;
       }
@@ -212,7 +217,7 @@ export async function GET(req: Request) {
     return NextResponse.json({
       ok: true,
       dryrun,
-      caps: { total: CAP_TOTAL, sg: SG_ADSET_CAP, adset: ADSET_CAP, todaySpendMin: SCALE_TODAY_SPEND_MIN },
+      caps: { total: CAP_TOTAL, sg: SG_ADSET_CAP, adset: ADSET_CAP, todaySpendMin: SCALE_TODAY_SPEND_MIN, pixelFactor: { my: 0.5, sg: 1 } },
       totalBudget,
       spendToday: Math.round(totSpendToday),
       actions,
