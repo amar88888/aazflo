@@ -37,7 +37,7 @@ const JOBS: Job[] = [
   { name: "sg-dayparting", due: (h, m) => h === 0 && m === 5, paths: ["sg-dayparting"] },
   // MY budget tukar start hari baru (clean, bukan jump tengah hari) — target & tarikh dalam endpoint
   { name: "my-scaleup", due: (h, m) => h === 0 && m === 6, paths: ["my-scaleup"] },
-  // MY rehat malam 00:02–06:00 (CPP malam RM70-100 vs siang RM25-30); wake ulang 06:20 & 07:00 sbg backup
+  // MY + TEST rehat malam 00:02–06:00 (CPP malam RM70-100 vs siang RM25-30); wake ulang 06:20 & 07:00 sbg backup
   { name: "my-malam-rehat", due: (h, m) => h === 0 && m === 2, paths: ["my-malam?action=rest"] },
   { name: "my-malam-bangun", due: (h, m) => (h === 6 && (m === 0 || m === 20)) || (h === 7 && m === 0), paths: ["my-malam?action=wake"] },
   // Laporan untung bersih sebenar vs target ke Telegram — user tak payah monitor sendiri
