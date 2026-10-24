@@ -37,6 +37,8 @@ const JOBS: Job[] = [
   { name: "sg-dayparting", due: (h, m) => h === 0 && m === 5, paths: ["sg-dayparting"] },
   // MY budget tukar start hari baru (clean, bukan jump tengah hari) — target & tarikh dalam endpoint
   { name: "my-scaleup", due: (h, m) => h === 0 && m === 6, paths: ["my-scaleup"] },
+  // Laporan untung bersih sebenar vs target ke Telegram — user tak payah monitor sendiri
+  { name: "untung-ping", due: (h, m) => (h === 12 || h === 16 || h === 21) && m === 30, paths: ["untung-ping"] },
   { name: "pengawal-order", due: (h, m) => h >= 8 && h <= 23 && m === 20, paths: ["order-guard?send=1"] },
   {
     name: "laporan-pagi",
