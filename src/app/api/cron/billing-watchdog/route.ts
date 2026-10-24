@@ -17,9 +17,11 @@ const STATUS: Record<number, string> = {
 };
 
 // Ingat keadaan terakhir supaya tak spam (alert bila tukar jadi teruk / pulih, re-alert tiap jam).
-const g = globalThis as unknown as { __billing?: { bad: boolean; lastAlert: number } };
-const state = (g.__billing ??= { bad: false, lastAlert: 0 });
+const g = globalThis as unknown as { __billing?: { bad: boolean; lastAlert: number; capAlert: number } };
+const state = (g.__billing ??= { bad: false, lastAlert: 0, capAlert: 0 });
 const HOUR = 3600 * 1000;
+// Spend cap akaun penuh = semua ads STOP senyap (24 Okt baki tinggal RM5,279 tanpa sesiapa sedar).
+const CAP_WARN = 5000; // RM baki — amaran bila bawah ni (≈ 2-3 hari belanja)
 
 // 🛡️ PENJAGA BILLING — kesan akaun iklan tergantung (bank gagal potong → UNSETTLED/DISABLED → ads STOP senyap).
 // Alert Telegram serta-merta supaya tak rugi jualan macam kejadian kad decline.
@@ -33,7 +35,7 @@ export async function GET(req: Request) {
   const { accessToken, adAccountId } = cfg;
 
   const qs = new URLSearchParams({
-    fields: "account_status,disable_reason,balance,currency,name",
+    fields: "account_status,disable_reason,balance,currency,name,spend_cap,amount_spent",
     access_token: accessToken,
   }).toString();
   const r = await fetch(`${GRAPH}/${adAccountId}?${qs}`, { cache: "no-store" });
@@ -70,7 +72,21 @@ export async function GET(req: Request) {
 
   state.bad = bad;
 
+  // Baki spend cap (0 = tiada cap). Amaran sekali sehari bila bawah CAP_WARN.
+  const cap = (Number(d.spend_cap) || 0) / 100;
+  const capLeft = cap > 0 ? cap - (Number(d.amount_spent) || 0) / 100 : null;
+  if (capLeft !== null && capLeft < CAP_WARN && (now - state.capAlert > 24 * HOUR || force)) {
+    await sendTelegram(
+      `⚠️ <b>SPEND CAP HAMPIR PENUH</b>\n` +
+        `Baki: <b>${cur} ${capLeft.toFixed(0)}</b> (had ${cur} ${cap.toFixed(0)})\n` +
+        `Bila penuh, SEMUA ads berhenti senyap. Naikkan had dalam Ads Manager → Billing → Account spending limit.`
+    );
+    state.capAlert = now;
+    sent = sent ? `${sent}+cap` : "cap";
+  }
+
   return NextResponse.json({
+    capLeft,
     ok: true,
     status: label,
     accountStatus: st,

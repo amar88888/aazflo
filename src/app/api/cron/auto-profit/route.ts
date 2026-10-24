@@ -26,8 +26,8 @@ const ADSET_CAP: Record<string, number> = {
 };
 const SCALE_TODAY_MIN = 2.5; // jangan scale kalau ROAS HARI NI < ni (Meta) walau 3-hari bagus — elak scale masa burn (cth catch-up lepas billing)
 // Ambang di atas dikira bila Purchase BERGANDA (PixelYourSite broadcast fbq('track') ke pixel iklan → ~2x order).
-// 24 Okt PixelYourSite dimatikan di facelim.com → pixel MY kini 1x; ambang MY/TEST × 0.5. SG (facelimsg) masih 2x.
-const pixelFactor = (adsetName: string) => (/sg/i.test(adsetName) ? 1 : 0.5);
+// 24 Okt PixelYourSite dimatikan di facelim.com & facelimsg.com → pixel MY & SG kini 1x; semua ambang × 0.5.
+const pixelFactor = (_adsetName: string) => 0.5;
 const SCALE_TODAY_SPEND_MIN = 100; // RM belanja hari ni minimum sebelum layak scale (ROAS hari ni mesti ada bukti)
 
 type AdRow = { id: string; name: string; status: string; adsetId: string; adsetName: string; budget: number; spend3: number; pur3: number; roas3: number; spendToday: number; purToday: number };
@@ -217,7 +217,7 @@ export async function GET(req: Request) {
     return NextResponse.json({
       ok: true,
       dryrun,
-      caps: { total: CAP_TOTAL, sg: SG_ADSET_CAP, adset: ADSET_CAP, todaySpendMin: SCALE_TODAY_SPEND_MIN, pixelFactor: { my: 0.5, sg: 1 } },
+      caps: { total: CAP_TOTAL, sg: SG_ADSET_CAP, adset: ADSET_CAP, todaySpendMin: SCALE_TODAY_SPEND_MIN, pixelFactor: { my: 0.5, sg: 0.5 } },
       totalBudget,
       spendToday: Math.round(totSpendToday),
       actions,
