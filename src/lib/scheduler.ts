@@ -39,8 +39,9 @@ const JOBS: Job[] = [
   { name: "my-scaleup", due: (h, m) => h === 0 && m === 6, paths: ["my-scaleup"] },
   // Purge cache semua kedai 04:30 (cache baru siap sebelum subuh & ads bangun 06:00)
   { name: "purge-cache", due: (h, m) => h === 4 && m === 30, paths: ["purge-cache"] },
-  // MY + TEST rehat malam 00:02–06:00 (CPP malam RM70-100 vs siang RM25-30); wake ulang 06:20 & 07:00 sbg backup
-  { name: "my-malam-rehat", due: (h, m) => h === 0 && m === 2, paths: ["my-malam?action=rest"] },
+  // Rehat malam DIHENTIKAN 26 Okt (owner setuju): data 6-21 Okt CPP malam cuma ~11% > siang (00-01 lebih murah),
+  // jimat ~RM8/hari, tapi pause/resume buat iklan mati 5 jam pagi 25 Okt (Meta minta verified advertiser).
+  // Wake kekal sbg pengaman — no-op kecuali ada flag *_malam_paused tertinggal.
   { name: "my-malam-bangun", due: (h, m) => (h === 6 && (m === 0 || m === 20)) || (h === 7 && m === 0), paths: ["my-malam?action=wake"] },
   // Laporan untung bersih sebenar vs target ke Telegram — user tak payah monitor sendiri
   { name: "untung-ping", due: (h, m) => (h === 12 || h === 16 || h === 21) && m === 30, paths: ["untung-ping"] },
