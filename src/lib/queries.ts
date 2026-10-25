@@ -13,7 +13,7 @@ function toMyr<T extends { store: string; total: number; items?: { unitPrice: nu
   return list;
 }
 import { getPlatformFees } from "@/lib/settings";
-import { subDays, addDays, subMonths, subYears, differenceInCalendarDays, format } from "date-fns";
+import { subDays, addDays, subMonths, subYears, format } from "date-fns";
 // Sempadan tarikh ikut MYT (server jalan UTC) — ganti startOfDay/endOfDay date-fns.
 import {
   startOfDayMY as startOfDay,
@@ -26,6 +26,10 @@ import {
 } from "@/lib/myt";
 
 const ACTIVE_STATUSES = ["pending", "printed", "shipped", "completed"];
+
+// Bilangan hari dalam julat MYT. Jangan guna differenceInCalendarDays — server UTC,
+// "Hari Ni" MYT (16:00Z semalam → 15:59Z hari ni) terkira 2 hari, target jadi 2x.
+const mytDays = (to: Date, from: Date) => Math.max(1, Math.ceil((to.getTime() - from.getTime()) / 86_400_000));
 
 export const DASHBOARD_PERIODS = [
   { key: "today", label: "Hari Ni" },
@@ -101,7 +105,7 @@ function buildTrend<T extends { orderedAt: Date; total: number }>(orders: T[], p
   } else if (r.gran === "month") {
     for (let m = 0; m < 12; m++) map.set(format(new Date(r.from.getFullYear(), m, 1), "MMM"), { revenue: 0, profit: 0 });
   } else {
-    const days = Math.min(differenceInCalendarDays(r.to, r.from) + 1, 92);
+    const days = Math.min(mytDays(r.to, r.from), 92);
     for (let i = 0; i < days; i++) map.set(format(toMytWall(addDays(startOfDay(r.from), i)), "dd/MM"), { revenue: 0, profit: 0 });
   }
   // Label ikut MYT (shift +8 sebab server UTC)
@@ -347,7 +351,7 @@ export async function getDashboardData(r: DashRange): Promise<DashboardData> {
     cogsTotal,
     shipFeeTotal,
     otherExpenses: totalExpenses - adsSpend,
-    periodDays: Math.max(1, differenceInCalendarDays(r.to, floor) + 1),
+    periodDays: mytDays(r.to, floor),
     revenueDeltaPct: delta(revenue, sumRev(prevOrders)),
     profitDeltaPct: delta(profit, prevNetProfit),
     ordersDeltaPct: delta(orderCount, prevOrders.length),
