@@ -23,8 +23,10 @@ const SG_ADSET_CAP = 600;    // cap SG (market kecil/tepu) — 17 Okt RM600 = 9.
 const ADSET_CAP: Record<string, number> = {
   // 26 Okt (owner setuju): RM100 MY→TEST. Testimoni Hitam penat (CPP RM60), winner IMG_5312 jalan dlm TEST (CPP RM30);
   // salinan dlm MY belum ambil (RM107/order). Jumlah kekal RM1,200.
-  "120251722984390356": 800, // FACELIM MY broad — 24 Okt: lebih RM1k, marginal ROAS < kos (MY RM1,612 = 1.34x vs RM1,024 = 1.81x)
-  "120251768506270356": 400, // TEST broad MY - creative hunt (+ winner IMG_5312)
+  // 27 Okt: adset MY penat — winner IMG_5312 yg hidup RM28 dlm TEST jadi RM108 bila disalin ke MY (audience MY jemu).
+  // Alih berat ke TEST (di mana creative baru convert). Jumlah kekal RM1,200.
+  "120251722984390356": 600, // FACELIM MY broad — turun dari RM800 (enjin lama penat)
+  "120251768506270356": 600, // TEST broad MY - creative hunt (winner IMG_5312 CPP RM28)
 };
 const SCALE_TODAY_MIN = 2.5; // jangan scale kalau ROAS HARI NI < ni (Meta) walau 3-hari bagus — elak scale masa burn (cth catch-up lepas billing)
 // Ambang di atas dikira bila Purchase BERGANDA (PixelYourSite broadcast fbq('track') ke pixel iklan → ~2x order).
