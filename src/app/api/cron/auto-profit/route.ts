@@ -11,7 +11,7 @@ const GRAPH = "https://graph.facebook.com/v21.0";
 const ROAS_PAUSE = 2.5;      // bawah ni (selepas belanja cukup) = rugi → pause
 const ROAS_SCALE = 3.8;      // atas ni (Meta ~3.8 = sebenar ~2.1x, untung kukuh) = scale winner lebih agresif
 const SPEND_PAUSE_3D = 100;  // RM belanja 3 hari sebelum layak dinilai utk pause
-const SPEND_TODAY_DEAD = 50; // RM belanja hari ni + 0 jualan = pause
+const SPEND_TODAY_DEAD = 60; // RM belanja hari ni + 0 jualan = pause (turun 80→60, potong dud lebih awal)
 const SPEND_SCALE_3D = 300;  // RM belanja 3 hari (volume terbukti) sebelum scale
 const SCALE_STEP = 1.2;      // naik +20% je (selamat)
 // FASA STABIL (24 Okt): 16-19 Okt untung bersih RM1,388-1,767 bila belanja <= RM2.6k (MY RM700-1,150 ROAS 3.8-4.4x).
@@ -33,6 +33,14 @@ const SCALE_TODAY_MIN = 2.5; // jangan scale kalau ROAS HARI NI < ni (Meta) wala
 // 24 Okt PixelYourSite dimatikan di facelim.com & facelimsg.com → pixel MY & SG kini 1x; semua ambang × 0.5.
 const pixelFactor = (_adsetName: string) => 0.5;
 const SCALE_TODAY_SPEND_MIN = 100; // RM belanja hari ni minimum sebelum layak scale (ROAS hari ni mesti ada bukti)
+// ── Tampung bocor 27 Okt (−RM137): winner pause + duit ke CPP RM78 ──
+const SPEND_BLEED_TODAY = 120;  // RM bakar hari ni sebelum nilai ad "mahal walau ada jualan"
+const CPP_BLEED_TODAY = 55;     // CPP hari ni (Meta) atas ni = rugi dalam (AOV ~RM61) walau ada jualan — potong
+// Auto-hidupkan winner TERBUKTI yg dah REHAT (elak budget bocor ke creative lemah bila winner ter-pause)
+const REVIVE_PUR_14D = 30;      // pembelian 14 hari minimum = winner terbukti (ambang tinggi; 14d separa pixel-berganda)
+const REVIVE_ROAS_14D = 2.5;    // ROAS 14 hari minimum = untung terbukti
+const REVIVE_RESTED_SPEND_3D = 20; // < ni belanja 3 hari = dah REHAT (bukan baru fatigue — IMG_6849 RM238/3hr ditolak)
+const REVIVE_MAX = 1;           // hidupkan max 1 winner rehat tiap larian (lembut, pause-logic jaga kalau bakar balik)
 
 type AdRow = { id: string; name: string; status: string; adsetId: string; adsetName: string; budget: number; spend3: number; pur3: number; roas3: number; spendToday: number; purToday: number };
 
@@ -147,26 +155,78 @@ export async function GET(req: Request) {
       if (a.status !== "ACTIVE") continue;
       byAdset.set(a.adsetId, [...(byAdset.get(a.adsetId) ?? []), a]);
     }
+    // Kira sebab-potong tiap ad (robust pakai CPP, elak kalibrasi ROAS/pixel yg kabur).
+    const flagOf = (a: AdRow) => {
+      const pf = pixelFactor(a.adsetName);
+      const cppToday = a.purToday > 0 ? a.spendToday / a.purToday : Infinity;
+      const loser3d = a.spend3 >= SPEND_PAUSE_3D && a.roas3 < ROAS_PAUSE * pf; // rugi SAH 3 hari
+      const deadToday = a.spendToday >= SPEND_TODAY_DEAD && a.purToday === 0 && a.roas3 < 1.0 * pf; // 0 jualan + bukan winner lag
+      // MAHAL HARI NI: ada jualan tapi CPP terlalu tinggi (cth Testimoni Hitam RM78) — rugi walau ada sale
+      const expensiveToday = a.spendToday >= SPEND_BLEED_TODAY && a.purToday > 0 && cppToday > CPP_BLEED_TODAY;
+      return { loser3d, deadToday, expensiveToday, bleeding: deadToday || expensiveToday, cppToday };
+    };
     for (const [, group] of byAdset) {
       const ranked = [...group].sort((x, y) => y.roas3 - x.roas3);
-      const protectedTop = new Set(ranked.slice(0, 2).map((a) => a.id));
+      // Lindung 2 ad terbaik (ROAS 3-hari) TAPI jangan lindung yg tengah BAKAR hari ni (winner fatigue ≠ dilindungi).
+      const protectedTop = new Set(ranked.filter((a) => !flagOf(a).bleeding).slice(0, 2).map((a) => a.id));
       let activeLeft = group.length;
       for (const a of ranked) {
         if (activeLeft <= 2) break; // sentiasa simpan >= 2 ad hidup
-        if (protectedTop.has(a.id)) continue; // 2 winner dilindungi
-        const pf = pixelFactor(a.adsetName);
-        const loser3d = a.spend3 >= SPEND_PAUSE_3D && a.roas3 < ROAS_PAUSE * pf; // rugi SAH 3 hari
-        // POTONG HARI NI: bakar >= RM80 hari ni + 0 jualan + TAKDE sejarah jualan (roas3<1 = bukan winner lag)
-        const deadToday = a.spendToday >= 80 && a.purToday === 0 && a.roas3 < 1.0 * pf;
-        if (!loser3d && !deadToday) continue;
+        if (protectedTop.has(a.id)) continue;
+        const f = flagOf(a);
+        if (!f.loser3d && !f.deadToday && !f.expensiveToday) continue;
         if (!dryrun) {
           const r = await gpost(a.id, { status: "PAUSED" });
           if (!r.ok) { actions.push(`❌ pause gagal "${a.name.slice(0, 24)}": ${r.error}`); continue; }
         }
         activeLeft--;
-        const why = deadToday ? `RM${a.spendToday.toFixed(0)} hari ni 0 jualan (dud)` : `3hr ROAS ${a.roas3.toFixed(1)}x (rugi)`;
+        const why = f.expensiveToday
+          ? `CPP RM${f.cppToday.toFixed(0)} hari ni (bakar RM${a.spendToday.toFixed(0)})`
+          : f.deadToday
+          ? `RM${a.spendToday.toFixed(0)} hari ni 0 jualan (dud)`
+          : `3hr ROAS ${a.roas3.toFixed(1)}x (rugi)`;
         actions.push(`${dryrun ? "[DRY] " : ""}⏸️ PAUSE "${a.name.slice(0, 30)}" — ${why}, bukan winner`);
       }
+    }
+
+    // ── A2) HIDUPKAN BALIK winner TERBUKTI yg dah REHAT ──
+    // 27 Okt: IMG_6851 (108 jualan 7hr, CPP RM27) ter-pause 3 hari → budget mengalir ke CPP RM78 = −RM137.
+    // Fix: cari ad PAUSED, adset masih hidup, volume+ROAS 14-hari terbukti, dah rehat (bukan baru fatigue) → ON balik.
+    const revived: string[] = [];
+    try {
+      const pausedRes = await gget(`${adAccountId}/ads`, {
+        fields: "id,name,adset{id,name,effective_status},insights.date_preset(last_14d){spend,actions,action_values}",
+        limit: "300", effective_status: "['PAUSED']",
+      });
+      const restRes = await gget(`${adAccountId}/ads`, {
+        fields: "id,insights.date_preset(last_3d){spend}", limit: "300", effective_status: "['PAUSED']",
+      });
+      const rest3 = new Map<string, number>();
+      for (const a of restRes.data || []) rest3.set(a.id, parseFloat(a.insights?.data?.[0]?.spend || "0"));
+      type Cand = { id: string; name: string; adsetName: string; pur14: number; roas14: number };
+      const cands: Cand[] = [];
+      for (const a of pausedRes.data || []) {
+        if (a.adset?.effective_status !== "ACTIVE") continue; // adset kena hidup supaya ad betul-betul serve
+        const ins = a.insights?.data?.[0];
+        const spend14 = ins ? parseFloat(ins.spend || "0") : 0;
+        const pur14 = purchasesOf(ins?.actions);
+        const roas14 = spend14 > 0 ? valueOf(ins?.action_values) / spend14 : 0;
+        const rested = (rest3.get(a.id) ?? 0) < REVIVE_RESTED_SPEND_3D; // IMG_6849 RM238/3hr → ditolak
+        if (pur14 >= REVIVE_PUR_14D && roas14 >= REVIVE_ROAS_14D && rested) {
+          cands.push({ id: a.id, name: a.name, adsetName: a.adset?.name ?? "", pur14, roas14 });
+        }
+      }
+      cands.sort((x, y) => y.roas14 - x.roas14);
+      for (const c of cands.slice(0, REVIVE_MAX)) {
+        if (!dryrun) {
+          const r = await gpost(c.id, { status: "ACTIVE" });
+          if (!r.ok) { actions.push(`❌ hidup gagal "${c.name.slice(0, 24)}": ${r.error}`); continue; }
+        }
+        revived.push(c.id);
+        actions.push(`${dryrun ? "[DRY] " : ""}🔆 HIDUP "${c.name.slice(0, 30)}" — winner rehat (14hr ${c.pur14} jualan, ROAS ${c.roas14.toFixed(1)}x)`);
+      }
+    } catch (e) {
+      actions.push(`⚠️ semak revive gagal: ${e instanceof Error ? e.message : String(e)}`);
     }
 
     // ── B) SCALE adset winner (+20%, cap RM${CAP_TOTAL}) ──
@@ -224,6 +284,7 @@ export async function GET(req: Request) {
       caps: { total: CAP_TOTAL, sg: SG_ADSET_CAP, adset: ADSET_CAP, todaySpendMin: SCALE_TODAY_SPEND_MIN, pixelFactor: { my: 0.5, sg: 0.5 } },
       totalBudget,
       spendToday: Math.round(totSpendToday),
+      revived,
       actions,
     });
   } catch (err) {
