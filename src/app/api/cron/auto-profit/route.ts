@@ -41,8 +41,13 @@ const REVIVE_PUR_14D = 30;      // pembelian 14 hari minimum = winner terbukti (
 const REVIVE_ROAS_14D = 2.5;    // ROAS 14 hari minimum = untung terbukti
 const REVIVE_RESTED_SPEND_3D = 20; // < ni belanja 3 hari = dah REHAT (bukan baru fatigue — IMG_6849 RM238/3hr ditolak)
 const REVIVE_MAX = 1;           // hidupkan max 1 winner rehat tiap larian (lembut, pause-logic jaga kalau bakar balik)
+// ── CBO: potong ANGLE (adset) mati — budget di campaign, satu angle boleh sedut budget winner ──
+// 29 Okt 2026: A4 Testimoni RM116/3hr + RM72 hari ni, 0 jualan, terlepas sebab pause-ad nilai per-IKLAN & lindung 2 iklan/adset.
+const ADSET_BLEED_TODAY = 50;   // adset CBO bakar >= ni hari ni + 0 jualan (& ada sejarah) = angle mati → pause adset
+const ADSET_BLEED_HIST_3D = 40; // mesti ada sejarah belanja 3hr >= ni (elak bunuh angle baru masa lag pagi)
+const CBO_MIN_ALIVE = 2;        // sentiasa simpan >= 2 angle hidup tiap campaign CBO
 
-type AdRow = { id: string; name: string; status: string; adsetId: string; adsetName: string; budget: number; spend3: number; pur3: number; roas3: number; spendToday: number; purToday: number };
+type AdRow = { id: string; name: string; status: string; adsetId: string; adsetName: string; campId: string; budget: number; spend3: number; pur3: number; roas3: number; spendToday: number; purToday: number };
 
 function purchasesOf(actions: { action_type: string; value: string }[] | undefined): number {
   let p = 0;
@@ -85,7 +90,7 @@ export async function GET(req: Request) {
   try {
     // Ambil semua ad aktif + adset (budget) + insight 3 hari & hari ni
     const fields =
-      "id,name,effective_status,adset{id,name,daily_budget,effective_status}," +
+      "id,name,effective_status,adset{id,name,daily_budget,effective_status},campaign{id,name}," +
       "insights.date_preset(last_3d){spend,actions,action_values}";
     const adsRes = await gget(`${adAccountId}/ads`, { fields, limit: "300", effective_status: "['ACTIVE']" });
     const todayRes = await gget(`${adAccountId}/ads`, {
@@ -110,7 +115,7 @@ export async function GET(req: Request) {
       const adsetId = a.adset?.id ?? "";
       activePerAdset.set(adsetId, (activePerAdset.get(adsetId) ?? 0) + 1);
       ads.push({
-        id: a.id, name: a.name, status: a.effective_status, adsetId, adsetName: a.adset?.name ?? "",
+        id: a.id, name: a.name, status: a.effective_status, adsetId, adsetName: a.adset?.name ?? "", campId: a.campaign?.id ?? "",
         budget: a.adset?.daily_budget ? parseInt(a.adset.daily_budget) / 100 : 0,
         spend3, pur3, roas3: spend3 > 0 ? val3 / spend3 : 0, spendToday: t.spend, purToday: t.pur,
       });
@@ -186,6 +191,46 @@ export async function GET(req: Request) {
           ? `RM${a.spendToday.toFixed(0)} hari ni 0 jualan (dud)`
           : `3hr ROAS ${a.roas3.toFixed(1)}x (rugi)`;
         actions.push(`${dryrun ? "[DRY] " : ""}⏸️ PAUSE "${a.name.slice(0, 30)}" — ${why}, bukan winner`);
+      }
+    }
+
+    // ── A1) CBO: POTONG ANGLE MATI (peringkat adset) ──
+    // Dlm CBO budget di CAMPAIGN — satu angle (adset) boleh bakar RM50+ 0 jualan sambil sedut budget
+    // dari angle winner. Pause-ad (atas) TAK tangkap: ia nilai per-IKLAN & lindung 2 iklan/adset.
+    // 29 Okt: A4 Testimoni RM116/3hr + RM72 hari ni 0 jualan → terlepas; owner "takkan sampai berdarah baru tutup".
+    // Keselamatan: simpan >= 2 angle hidup/campaign; lindung 2 adset ROAS-3hr tertinggi; angle baru (tiada sejarah) tak dipotong.
+    type AdsetAgg = { id: string; name: string; campId: string; isCbo: boolean; spendToday: number; purToday: number; spend3: number; wroas3: number };
+    const aggByAdset = new Map<string, AdsetAgg>();
+    for (const a of ads) {
+      if (a.status !== "ACTIVE") continue;
+      const cur = aggByAdset.get(a.adsetId) ?? { id: a.adsetId, name: a.adsetName, campId: a.campId, isCbo: (budgetById.get(a.adsetId) ?? 0) === 0, spendToday: 0, purToday: 0, spend3: 0, wroas3: 0 };
+      cur.spendToday += a.spendToday; cur.purToday += a.purToday;
+      cur.spend3 += a.spend3; cur.wroas3 += a.roas3 * a.spend3;
+      aggByAdset.set(a.adsetId, cur);
+    }
+    const roas3Of = (s: AdsetAgg) => (s.spend3 > 0 ? s.wroas3 / s.spend3 : 0);
+    const cboByCamp = new Map<string, AdsetAgg[]>(); // adset tanpa budget sendiri + tengah belanja = CBO
+    for (const s of aggByAdset.values()) if (s.isCbo && s.spendToday > 0) cboByCamp.set(s.campId, [...(cboByCamp.get(s.campId) ?? []), s]);
+    for (const [, group] of cboByCamp) {
+      if (group.length <= CBO_MIN_ALIVE) continue; // tak cukup angle utk potong selamat
+      const pf = pixelFactor(group[0]?.name ?? "");
+      const ranked = [...group].sort((x, y) => roas3Of(y) - roas3Of(x));
+      const protectedTop = new Set(ranked.slice(0, 2).map((s) => s.id)); // 2 angle ROAS-3hr terbaik dilindung
+      let aliveLeft = group.length;
+      for (const s of ranked) {
+        if (aliveLeft <= CBO_MIN_ALIVE) break;
+        if (protectedTop.has(s.id)) continue;
+        const r3 = roas3Of(s);
+        const loser3d = s.spend3 >= SPEND_PAUSE_3D && r3 < ROAS_PAUSE * pf; // angle terbukti rugi 3 hari
+        const deadToday = s.spendToday >= ADSET_BLEED_TODAY && s.purToday === 0 && s.spend3 >= ADSET_BLEED_HIST_3D && r3 < 1.0 * pf;
+        if (!loser3d && !deadToday) continue;
+        if (!dryrun) {
+          const r = await gpost(s.id, { status: "PAUSED" });
+          if (!r.ok) { actions.push(`❌ potong angle gagal "${s.name.slice(0, 24)}": ${r.error}`); continue; }
+        }
+        aliveLeft--;
+        const why = loser3d ? `3hr ROAS ${r3.toFixed(1)}x rugi (RM${s.spend3.toFixed(0)})` : `RM${s.spendToday.toFixed(0)} hari ni 0 jualan`;
+        actions.push(`${dryrun ? "[DRY] " : ""}⏸️ POTONG ANGLE "${s.name.slice(0, 30)}" (CBO) — ${why}`);
       }
     }
 
