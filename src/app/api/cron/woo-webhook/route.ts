@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { upsertWooOrder } from "@/lib/woo-sync";
 import { sendTelegram } from "@/lib/telegram";
 import type { WooOrder } from "@/lib/integrations/woocommerce";
+import { getWooStores } from "@/lib/integrations/woocommerce";
 import { sendPurchaseCapi, type CapiOrder } from "@/lib/meta-capi";
 
 export const dynamic = "force-dynamic";
@@ -22,12 +23,28 @@ const STORE_LABEL: Record<string, string> = {
 const g = globalThis as unknown as { __kaching?: Set<string> };
 const alerted = (g.__kaching ??= new Set<string>());
 
+// Kenal kedai PUNCA webhook — authoritative dari header `x-wc-webhook-source`
+// (URL kedai yang WooCommerce hantar sendiri), fallback ke ?store= HANYA kalau
+// kedai betul-betul dikenali. JANGAN sesekali default "maxlim": webhook tersasar
+// atau tanpa param pernah masuk sebagai order Maxlim HANTU (order Facelim
+// disalah-label jadi Maxlim → double-count P&L).
+async function resolveStoreKey(req: Request, url: URL): Promise<string | null> {
+  const stores = await getWooStores();
+  const src = (req.headers.get("x-wc-webhook-source") || "").replace(/\/+$/, "").toLowerCase();
+  if (src) {
+    const bySource = stores.find((s) => s.url.replace(/\/+$/, "").toLowerCase() === src);
+    if (bySource) return bySource.key;
+  }
+  const q = url.searchParams.get("store");
+  if (q && stores.some((s) => s.key === q)) return q;
+  return null;
+}
+
 export async function POST(req: Request) {
   const url = new URL(req.url);
   if (!process.env.CRON_SECRET || url.searchParams.get("secret") !== process.env.CRON_SECRET) {
     return NextResponse.json({ ok: false, message: "Unauthorized" }, { status: 401 });
   }
-  const store = url.searchParams.get("store") || "maxlim";
 
   // Woo hantar "ping" (webhook_id=..) masa webhook dicipta — balas 200
   const raw = await req.text();
@@ -38,6 +55,21 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: true, ping: true });
   }
   if (!wo?.id || !Array.isArray(wo.line_items)) return NextResponse.json({ ok: true, ignored: true });
+
+  // Kenal kedai dari sumber sebenar — elak salah-label jadi Maxlim hantu.
+  const store = await resolveStoreKey(req, url);
+  if (!store) {
+    // Sumber tak dikenali: JANGAN ingest. Full-sync akan tangkap order ni ikut kedai betul.
+    const gw = globalThis as unknown as { __unknownStoreAlert?: number };
+    if (Date.now() - (gw.__unknownStoreAlert ?? 0) > 3600_000) {
+      gw.__unknownStoreAlert = Date.now();
+      const srcHdr = req.headers.get("x-wc-webhook-source") || "(tiada header)";
+      await sendTelegram(
+        `⚠️ <b>Webhook kedai tak dikenali</b>\nsource: ${String(srcHdr).slice(0, 120)}\norder #${wo.id} diabaikan (akan masuk via full-sync).`,
+      ).catch(() => {});
+    }
+    return NextResponse.json({ ok: true, ignored: "unknown-store" });
+  }
 
   const key = `${store}:${wo.id}`;
   const prev = await db.order.findUnique({
