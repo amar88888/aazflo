@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getMetaCreds } from "@/lib/integrations/meta-ads";
 import { sendTelegram } from "@/lib/telegram";
+import { getSetting } from "@/lib/settings";
 
 export const dynamic = "force-dynamic";
 
@@ -93,6 +94,35 @@ export async function GET(req: Request) {
   };
 
   try {
+    // ── 🇸🇬 SG SELF-HEAL — SG = engine untung #1 (ROAS 4-5x, AOV ~RM193). Selalu ter-pause pada hari jualan sebab ──
+    // job tengah malam (resume-ads 00:01 / dayparting 00:05) MISS bila server tidur/restart waktu malam (takde traffic).
+    // Auto-profit jalan tiap 2 jam → pastikan SG ON pada PAGI hari jualan (Isnin-Sabtu). PAGI je supaya tak lawan
+    // sg-watch (yg cut SG petang bila betul-betul bleeding). Hormati sg_hold (kunci manual owner).
+    const SG_CAMPAIGN_HEAL = "120251751539750356";
+    let sgHealthAlert: string | null = null;
+    try {
+      const nowMyt = new Date(Date.now() + 8 * 3600 * 1000);
+      const hourMyt = nowMyt.getUTCHours();
+      const dayMyt = nowMyt.getUTCDay(); // 0=Ahad
+      const sgHold = (await getSetting("sg_hold")) === "1";
+      const sgRunDay = dayMyt !== 0; // Ahad rehat (hari sepi SG)
+      if (sgRunDay && !sgHold) {
+        const sgStatus = (await gget(SG_CAMPAIGN_HEAL, { fields: "effective_status" })).effective_status as string | undefined;
+        if (sgStatus && sgStatus !== "ACTIVE") {
+          if (hourMyt < 12) {
+            // Pagi hari jualan + SG mati = job malam miss → hidupkan balik
+            if (!dryrun) await gpost(SG_CAMPAIGN_HEAL, { status: "ACTIVE" });
+            actions.push(`${dryrun ? "[DRY] " : ""}🇸🇬 SG HIDUP BALIK — engine untung ter-pause pagi hari jualan (job malam miss)`);
+          } else {
+            // Petang: mungkin sg-watch cut atas sebab betul — jangan paksa, tapi ALERT owner supaya sedar
+            sgHealthAlert = `🇸🇬 SG OFF pada ${["Ahad","Isnin","Selasa","Rabu","Khamis","Jumaat","Sabtu"][dayMyt]} petang — kalau bukan sg-watch cut, hidupkan balik (engine untung #1).`;
+          }
+        }
+      }
+    } catch (e) {
+      actions.push(`⚠️ SG self-heal gagal: ${e instanceof Error ? e.message : String(e)}`);
+    }
+
     // Ambil semua ad aktif + adset (budget) + insight 3 hari & hari ni
     const fields =
       "id,name,effective_status,adset{id,name,daily_budget,effective_status},campaign{id,name}," +
@@ -322,6 +352,7 @@ export async function GET(req: Request) {
 
     // ── B2) ALERT STRUKTUR (tutup lubang "owner sendiri perasan broad 1 video") ──
     const health: string[] = [];
+    if (sgHealthAlert) health.push(sgHealthAlert);
     const broadActive = activePerAdset.get(MY_BROAD_ADSET) ?? 0;
     if (broadActive > 0 && broadActive < MIN_BROAD_WINNERS) {
       health.push(`⚠️ BROAD UTAMA cuma ${broadActive} video aktif (min ${MIN_BROAD_WINNERS}) — tambah winner dari bench, jangan bergantung creative penat!`);
