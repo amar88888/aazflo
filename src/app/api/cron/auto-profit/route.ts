@@ -94,6 +94,7 @@ export async function GET(req: Request) {
   };
 
   try {
+    const actions: string[] = [];
     // ── 🇸🇬 SG SELF-HEAL — SG = engine untung #1 (ROAS 4-5x, AOV ~RM193). Selalu ter-pause pada hari jualan sebab ──
     // job tengah malam (resume-ads 00:01 / dayparting 00:05) MISS bila server tidur/restart waktu malam (takde traffic).
     // Auto-profit jalan tiap 2 jam → pastikan SG ON pada PAGI hari jualan (Isnin-Sabtu). PAGI je supaya tak lawan
@@ -166,7 +167,6 @@ export async function GET(req: Request) {
       totalBudget += b;
     }
 
-    const actions: string[] = [];
 
     // ── 0) PENJAGA BUDGET — adset atas had (kod lama, manual, Meta) → turun balik ke had ──
     // 24 Okt: deploy terlepas → MY naik RM1,800 semalaman tanpa sesiapa sedar.
