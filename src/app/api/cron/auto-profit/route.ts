@@ -41,6 +41,11 @@ const REVIVE_PUR_14D = 30;      // pembelian 14 hari minimum = winner terbukti (
 const REVIVE_ROAS_14D = 2.5;    // ROAS 14 hari minimum = untung terbukti
 const REVIVE_RESTED_SPEND_3D = 20; // < ni belanja 3 hari = dah REHAT (bukan baru fatigue — IMG_6849 RM238/3hr ditolak)
 const REVIVE_MAX = 1;           // hidupkan max 1 winner rehat tiap larian (lembut, pause-logic jaga kalau bakar balik)
+// ── ALERT STRUKTUR (6 Nov 2026): owner kena sendiri perasan "broad 1 video je" — tutup lubang. Alert je, tak sentuh budget. ──
+const MY_BROAD_ADSET = "120251722984390356"; // FACELIM MY broad (adset scaling utama)
+const MIN_BROAD_WINNERS = 5;    // broad utama di bawah ni = kurang video, risiko bergantung 1-2 creative penat → jerit
+const IDLE_WINNER_PUR_14D = 10; // winner terbukti (14hr) yg PAUSED tapi adset hidup = boleh jalan tapi terperuk → cadang
+const IDLE_WINNER_ROAS_14D = 2.0;
 // ── CBO: potong ANGLE (adset) mati — budget di campaign, satu angle boleh sedut budget winner ──
 // 29 Okt 2026: A4 Testimoni RM116/3hr + RM72 hari ni, 0 jualan, terlepas sebab pause-ad nilai per-IKLAN & lindung 2 iklan/adset.
 const ADSET_BLEED_TODAY = 50;   // adset CBO bakar >= ni hari ni + 0 jualan (& ada sejarah) = angle mati → pause adset
@@ -238,6 +243,7 @@ export async function GET(req: Request) {
     // 27 Okt: IMG_6851 (108 jualan 7hr, CPP RM27) ter-pause 3 hari → budget mengalir ke CPP RM78 = −RM137.
     // Fix: cari ad PAUSED, adset masih hidup, volume+ROAS 14-hari terbukti, dah rehat (bukan baru fatigue) → ON balik.
     const revived: string[] = [];
+    const idleWinners: { name: string; pur: number; roas: number }[] = [];
     try {
       const pausedRes = await gget(`${adAccountId}/ads`, {
         fields: "id,name,adset{id,name,effective_status},insights.date_preset(last_14d){spend,actions,action_values}",
@@ -260,6 +266,8 @@ export async function GET(req: Request) {
         if (pur14 >= REVIVE_PUR_14D && roas14 >= REVIVE_ROAS_14D && rested) {
           cands.push({ id: a.id, name: a.name, adsetName: a.adset?.name ?? "", pur14, roas14 });
         }
+        // Alert (bukan tindakan): winner terbukti tapi PAUSED dlm adset hidup = boleh jalan, terperuk
+        if (pur14 >= IDLE_WINNER_PUR_14D && roas14 >= IDLE_WINNER_ROAS_14D) idleWinners.push({ name: a.name, pur: pur14, roas: roas14 });
       }
       cands.sort((x, y) => y.roas14 - x.roas14);
       for (const c of cands.slice(0, REVIVE_MAX)) {
@@ -312,6 +320,18 @@ export async function GET(req: Request) {
       actions.push(`${dryrun ? "[DRY] " : ""}🚀 SCALE "${info.name.slice(0, 30)}" RM${info.budget}→RM${next} (ROAS ${roas3.toFixed(1)}x)`);
     }
 
+    // ── B2) ALERT STRUKTUR (tutup lubang "owner sendiri perasan broad 1 video") ──
+    const health: string[] = [];
+    const broadActive = activePerAdset.get(MY_BROAD_ADSET) ?? 0;
+    if (broadActive > 0 && broadActive < MIN_BROAD_WINNERS) {
+      health.push(`⚠️ BROAD UTAMA cuma ${broadActive} video aktif (min ${MIN_BROAD_WINNERS}) — tambah winner dari bench, jangan bergantung creative penat!`);
+    }
+    if (idleWinners.length) {
+      idleWinners.sort((a, b) => b.roas - a.roas);
+      const top = idleWinners.slice(0, 5).map((w) => `${w.name.replace(/^FACELIM /, "").slice(0, 22)} ${w.roas.toFixed(1)}x/${w.pur}`).join(", ");
+      health.push(`💡 ${idleWinners.length} winner terbukti TERPERUK (paused, boleh jalan): ${top}`);
+    }
+
     // ── C) REPORT Telegram ──
     const totSpendToday = [...todayMap.values()].reduce((s, x) => s + x.spend, 0);
     const head = dryrun ? "🤖 AUTO-PROFIT (DRY-RUN — tiada tindakan sebenar)" : "🤖 AUTO-PROFIT";
@@ -320,6 +340,7 @@ export async function GET(req: Request) {
       `Belanja hari ni: RM${totSpendToday.toFixed(0)} · budget harian: RM${totalBudget.toFixed(0)}/${CAP_TOTAL}`,
       "",
       actions.length ? actions.join("\n") : "✅ Semua sihat — tiada pause/scale perlu.",
+      ...(health.length ? ["", "— SEMAKAN STRUKTUR —", ...health] : []),
     ];
     await sendTelegram(lines.join("\n"));
 
@@ -327,6 +348,7 @@ export async function GET(req: Request) {
       ok: true,
       dryrun,
       caps: { total: CAP_TOTAL, sg: SG_ADSET_CAP, adset: ADSET_CAP, todaySpendMin: SCALE_TODAY_SPEND_MIN, pixelFactor: { my: 0.5, sg: 0.5 } },
+      health,
       totalBudget,
       spendToday: Math.round(totSpendToday),
       revived,
