@@ -19,7 +19,7 @@ const SCALE_STEP = 1.2;      // naik +20% je (selamat)
 // 20-23 Okt belanja RM3k+ (auto-scale +20%/2jam) → untung jatuh RM462-994. Kunci dulu sweet spot; naikkan cap
 // bila untung stabil RM1,100+ dan ada winner baru (fasa naik ke RM2,000-2,500).
 const CAP_TOTAL = 2100;      // cap budget harian semua adset (RM)
-const SG_ADSET_CAP = 600;    // cap SG (market kecil/tepu) — 17 Okt RM600 = 9.1x; RM815+ ROAS jatuh
+const SG_ADSET_CAP = 150;    // cap SG — 13 Nov owner: SG kekal kecil, JANGAN naikkan (dulu 600)
 // Cap ikut adset (id) — MY sweet spot RM700-1,150; TEST tak di-scale (tugas dia cari winner, bukan volume).
 const ADSET_CAP: Record<string, number> = {
   // 26 Okt (owner setuju): RM100 MY→TEST. Testimoni Hitam penat (CPP RM60), winner IMG_5312 jalan dlm TEST (CPP RM30);
@@ -28,6 +28,8 @@ const ADSET_CAP: Record<string, number> = {
   // Alih berat ke TEST (di mana creative baru convert). Jumlah kekal RM1,200.
   "120251722984390356": 800, // FACELIM MY broad — WINNER STACK 6 Nov: 9 video proven (≥2.0 + rested winners), naik 600→800
   "120251768506270356": 600, // TEST broad MY - creative hunt (kini CBO campaign paused; cap tinggal utk rujukan)
+  // 13 Nov (owner): "Ads Singapore jgn naikkan takut koyak" — 12 Nov auto-scale bawa SG RM150→600. Kunci SG RM150.
+  "120251862729740356": 150, // FACELIM SG - broad SG
 };
 const SCALE_TODAY_MIN = 2.5; // jangan scale kalau ROAS HARI NI < ni (Meta) walau 3-hari bagus — elak scale masa burn (cth catch-up lepas billing)
 // Ambang di atas dikira bila Purchase BERGANDA (PixelYourSite broadcast fbq('track') ke pixel iklan → ~2x order).
