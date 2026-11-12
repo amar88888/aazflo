@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getMetaCreds } from "@/lib/integrations/meta-ads";
 import { sendTelegram } from "@/lib/telegram";
-import { getSetting } from "@/lib/settings";
+import { getSetting, setSetting } from "@/lib/settings";
 
 export const dynamic = "force-dynamic";
 
@@ -19,7 +19,9 @@ const SCALE_STEP = 1.2;      // naik +20% je (selamat)
 // 20-23 Okt belanja RM3k+ (auto-scale +20%/2jam) → untung jatuh RM462-994. Kunci dulu sweet spot; naikkan cap
 // bila untung stabil RM1,100+ dan ada winner baru (fasa naik ke RM2,000-2,500).
 const CAP_TOTAL = 2100;      // cap budget harian semua adset (RM)
-const SG_ADSET_CAP = 150;    // cap SG — 13 Nov owner: SG kekal kecil, JANGAN naikkan (dulu 600)
+const SG_ADSET_CAP = 300;    // cap SG — 13 Nov owner: "jgn naikkan takut koyak" TAPI "jgn kunci habis kalau untung" → had RM300
+const SG_SCALE_ROAS_MULT = 1.4; // SG mesti ROAS hari ni ≥ SCALE_TODAY_MIN×1.4 (lebih ketat dari MY) baru boleh naik
+// SG naik MAKSIMUM SEKALI sehari (+20%) — 12 Nov dulu naik tiap 2 jam RM150→600 dalam sehari.
 // Cap ikut adset (id) — MY sweet spot RM700-1,150; TEST tak di-scale (tugas dia cari winner, bukan volume).
 const ADSET_CAP: Record<string, number> = {
   // 26 Okt (owner setuju): RM100 MY→TEST. Testimoni Hitam penat (CPP RM60), winner IMG_5312 jalan dlm TEST (CPP RM30);
@@ -28,8 +30,8 @@ const ADSET_CAP: Record<string, number> = {
   // Alih berat ke TEST (di mana creative baru convert). Jumlah kekal RM1,200.
   "120251722984390356": 800, // FACELIM MY broad — WINNER STACK 6 Nov: 9 video proven (≥2.0 + rested winners), naik 600→800
   "120251768506270356": 600, // TEST broad MY - creative hunt (kini CBO campaign paused; cap tinggal utk rujukan)
-  // 13 Nov (owner): "Ads Singapore jgn naikkan takut koyak" — 12 Nov auto-scale bawa SG RM150→600. Kunci SG RM150.
-  "120251862729740356": 150, // FACELIM SG - broad SG
+  // 13 Nov (owner): "jgn naikkan takut koyak" + "jgn kunci habis kalau untung" — 12 Nov auto-scale bawa SG RM150→600.
+  "120251862729740356": 300, // FACELIM SG - broad SG (naik sekali sehari je, ROAS ketat)
 };
 const SCALE_TODAY_MIN = 2.5; // jangan scale kalau ROAS HARI NI < ni (Meta) walau 3-hari bagus — elak scale masa burn (cth catch-up lepas billing)
 // Ambang di atas dikira bila Purchase BERGANDA (PixelYourSite broadcast fbq('track') ke pixel iklan → ~2x order).
@@ -339,6 +341,17 @@ export async function GET(req: Request) {
       const isSg = /sg/i.test(info.name);
       const adsetCap = ADSET_CAP[adsetId] ?? (isSg ? SG_ADSET_CAP : CAP_TOTAL);
       if (info.budget >= adsetCap) { actions.push(`🔒 "${info.name.slice(0, 24)}" dah cap RM${adsetCap}${isSg ? " (SG tepu)" : ""}`); continue; }
+      const todayMytStr = new Date(Date.now() + 8 * 3600 * 1000).toISOString().slice(0, 10);
+      if (isSg) {
+        if (todayRoas < SCALE_TODAY_MIN * pfs * SG_SCALE_ROAS_MULT) {
+          actions.push(`⏭️ "${info.name.slice(0, 24)}" SG skip — ROAS hari ni ${todayRoas.toFixed(1)}x belum cukup kuat`);
+          continue;
+        }
+        if ((await getSetting("sg_last_scale")) === todayMytStr) {
+          actions.push(`⏭️ "${info.name.slice(0, 24)}" SG dah naik sekali hari ni — tunggu esok`);
+          continue;
+        }
+      }
       let next = Math.round(info.budget * SCALE_STEP);
       if (next > adsetCap) next = adsetCap; // jangan lepas cap adset (khususnya SG)
       const headroom = CAP_TOTAL - (totalBudget - info.budget);
@@ -348,6 +361,7 @@ export async function GET(req: Request) {
         const r = await gpost(adsetId, { daily_budget: String(next * 100) });
         if (!r.ok) { actions.push(`❌ scale gagal "${info.name.slice(0, 24)}": ${r.error}`); continue; }
       }
+      if (isSg && !dryrun) await setSetting("sg_last_scale", todayMytStr);
       totalBudget += next - info.budget;
       actions.push(`${dryrun ? "[DRY] " : ""}🚀 SCALE "${info.name.slice(0, 30)}" RM${info.budget}→RM${next} (ROAS ${roas3.toFixed(1)}x)`);
     }
