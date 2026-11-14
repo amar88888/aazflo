@@ -41,6 +41,8 @@ const SCALE_TODAY_SPEND_MIN = 100; // RM belanja hari ni minimum sebelum layak s
 // ── Tampung bocor 27 Okt (−RM137): winner pause + duit ke CPP RM78 ──
 const SPEND_BLEED_TODAY = 120;  // RM bakar hari ni sebelum nilai ad "mahal walau ada jualan"
 const CPP_BLEED_TODAY = 55;     // CPP hari ni (Meta) atas ni = rugi dalam (AOV ~RM61) walau ada jualan — potong
+// 15 Nov: champion SG tak boleh di-pause peringkat ad (11 & 14 Nov flop sebab dia ter-OFF). Sama dgn SG_CHAMPIONS di sg-watch.
+const NEVER_PAUSE_ADS = new Set(["120251862751940356"]); // FACELIM SG - IMG_6851 pemenang
 const CPP_BLEED_TODAY_SG = 110; // SG AOV ~SGD55-60 (≈RM180) → had CPP lain (bukan had MY)
 const WINNER_PUR_3D = 10;       // ≥ ni sale 3 hari + CPP 3hr dlm had = winner terbukti → tak dipotong sebab "mahal hari ni"
 const EXPENSIVE_MIN_HOUR_MYT = 14; // rule "mahal hari ni" hanya lepas 2 petang MYT (pagi = catch-up burn + lag atribusi)
@@ -112,7 +114,8 @@ export async function GET(req: Request) {
       const nowMyt = new Date(Date.now() + 8 * 3600 * 1000);
       const hourMyt = nowMyt.getUTCHours();
       const dayMyt = nowMyt.getUTCDay(); // 0=Ahad
-      const sgHold = (await getSetting("sg_hold")) === "1";
+      const sgCutToday = (await getSetting("sg_cut_day")) === nowMyt.toISOString().slice(0, 10); // sg-watch potong hari ni
+      const sgHold = (await getSetting("sg_hold")) === "1" || sgCutToday;
       const sgRunDay = dayMyt !== 0; // Ahad rehat (hari sepi SG)
       if (sgRunDay && !sgHold) {
         const sgStatus = (await gget(SG_CAMPAIGN_HEAL, { fields: "effective_status" })).effective_status as string | undefined;
@@ -229,6 +232,7 @@ export async function GET(req: Request) {
       for (const a of ranked) {
         if (activeLeft <= 2) break; // sentiasa simpan >= 2 ad hidup
         if (protectedTop.has(a.id)) continue;
+        if (NEVER_PAUSE_ADS.has(a.id)) continue; // champion SG — sg-watch yg jaga (cut peringkat campaign)
         const f = flagOf(a);
         if (!f.loser3d && !f.deadToday && !f.expensiveToday) continue;
         if (!dryrun) {

@@ -1,12 +1,15 @@
 import { NextResponse } from "next/server";
 import { getMetaCreds } from "@/lib/integrations/meta-ads";
 import { sendTelegram } from "@/lib/telegram";
+import { setSetting } from "@/lib/settings";
 
 export const dynamic = "force-dynamic";
 
 const GRAPH = "https://graph.facebook.com/v21.0";
 const PUR = new Set(["purchase", "omni_purchase", "offsite_conversion.fb_pixel_purchase"]);
 const SG_CAMPAIGN = "120251751539750356"; // FACELIM SG - LIVE 7 OKT
+// Ad SG yang bawa order — mesti sentiasa ON bila SG hidup (11 & 14 Nov flop sebab dia ter-OFF)
+const SG_CHAMPIONS = ["120251862751940356"]; // FACELIM SG - IMG_6851 pemenang
 
 // Ambang "sihat" SG (selepas trim + cap auto-profit RM800).
 // Nilai asal dikira bila Purchase SG BERGANDA (PixelYourSite). 24 Okt plugin dibuang → purchase 1x:
@@ -15,7 +18,10 @@ const CPP_OK = 100; // dulu 50 (19 Okt SG RM43 berganda)
 const CPP_BAD = 130; // dulu 65 (20 Okt SG RM71 berganda — tepu)
 
 // Ambang AUTO-CUT — SG betul-betul bleeding → pause SENDIRI hari tu (dayparting cuba balik esok).
-const CUT_MIN_SPEND = 300; // cukup belanja utk nilai (elak cut pagi palsu)
+// 15 Nov: budget SG kini RM150-300 → ambang lama RM300 tak pernah sampai. AOV SG ~RM180, breakeven CPP ~RM110.
+const CUT_MIN_SPEND = 80; // bawah ni belum nilai langsung
+const CUT_ZERO_SALE_SPEND = 120; // RM120+ hari ni & 0 sale = bakar → cut
+const CUT_BLEED_SPEND = 180; // ada sale tapi mahal — nilai lepas RM180
 const CUT_ROAS = 0.75; // dulu 1.5 berganda — ROAS bawah ni = bawah breakeven = rugi
 const CUT_CPP = 170; // dulu 85 berganda — CPP atas ni = terlalu mahal, bakar
 
@@ -59,19 +65,55 @@ export async function GET(req: Request) {
     return { spend, pur, val, cpp: pur ? spend / pur : 0, roas: spend ? val / spend : 0 };
   };
 
+  const gpost = async (id: string, body: Record<string, string>) => {
+    const r = await fetch(`${GRAPH}/${id}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({ ...body, access_token: accessToken }).toString(),
+    });
+    const j = await r.json().catch(() => ({}));
+    return r.ok && !j.error;
+  };
+  const mytHour = new Date(Date.now() + 8 * 3600 * 1000).getUTCHours();
+  const regularPing = mytHour === 12 || mytHour === 16; // laporan biasa 2x sehari; jam lain alert je bila ada masalah
+
+  // 🏆 PENGAWAL CHAMPION — 14 Nov: IMG_6851 mati hampir sehari, Meta tolak duit ke IMG_6863 → RM185, 0 order.
+  // Bila SG campaign hidup tapi champion tak ACTIVE → hidupkan balik + alert.
+  const championNotes: string[] = [];
+  try {
+    const camp = await fetch(`${GRAPH}/${SG_CAMPAIGN}?fields=effective_status&access_token=${accessToken}`, { cache: "no-store" }).then((r) => r.json());
+    if (camp.effective_status === "ACTIVE") {
+      for (const id of SG_CHAMPIONS) {
+        const ad = await fetch(`${GRAPH}/${id}?fields=name,status,effective_status&access_token=${accessToken}`, { cache: "no-store" }).then((r) => r.json());
+        if (ad.status === "PAUSED") {
+          const ok = await gpost(id, { status: "ACTIVE" });
+          championNotes.push(`${ok ? "✅ Hidup balik" : "❌ GAGAL hidupkan"} champion SG "${ad.name}" (tadi PAUSED)`);
+        } else if (ad.effective_status && !["ACTIVE", "IN_PROCESS", "PENDING_REVIEW"].includes(ad.effective_status)) {
+          championNotes.push(`⚠️ Champion SG "${ad.name}" status ${ad.effective_status} — check manual`);
+        }
+      }
+    }
+  } catch (e) {
+    championNotes.push(`⚠️ Semak champion SG gagal: ${e instanceof Error ? e.message : String(e)}`);
+  }
+  if (championNotes.length) await sendTelegram(`🏆 <b>SG Champion Guard</b>\n${championNotes.join("\n")}`);
+
   const today = await sgStats(ymd(0));
   const yest = await sgStats(ymd(1));
 
   // Belum cukup belanja utk dinilai (pagi awal) — jangan alert palsu.
-  if (today.spend < 150) {
-    return NextResponse.json({ ok: true, skipped: "belanja SG belum cukup utk dinilai", today });
+  if (today.spend < CUT_MIN_SPEND) {
+    return NextResponse.json({ ok: true, skipped: "belanja SG belum cukup utk dinilai", today, championNotes });
   }
 
   // 🔪 AUTO-CUT — SG bleeding selepas belanja cukup → pause SENDIRI (tak tunggu manual).
+  // 15 Nov FIX: dulu 0 sale = cpp 0 & roas 0 → syarat tak pernah kena (14 Nov RM185 0 order lepas).
+  const zeroSale = today.pur === 0 && today.spend >= CUT_ZERO_SALE_SPEND;
   const bleeding =
-    today.spend >= CUT_MIN_SPEND &&
-    ((today.roas > 0 && today.roas < CUT_ROAS) || today.cpp >= CUT_CPP);
+    zeroSale ||
+    (today.pur > 0 && today.spend >= CUT_BLEED_SPEND && (today.roas < CUT_ROAS || today.cpp >= CUT_CPP));
   if (bleeding) {
+    await setSetting("sg_cut_day", ymd(0)); // auto-profit self-heal hormat ni — jangan hidupkan balik hari sama
     const r = await fetch(`${GRAPH}/${SG_CAMPAIGN}`, {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -98,7 +140,8 @@ export async function GET(req: Request) {
     `CPP hari ni: <b>RM${today.cpp.toFixed(0)}</b> (semalam RM${yest.cpp.toFixed(0)})\n` +
     `ROAS ${today.roas.toFixed(2)}x · ${today.pur} sale · belanja RM${today.spend.toFixed(0)}\n` +
     `${verdict}`;
-  await sendTelegram(msg);
+  // Jalan tiap jam sekarang — laporan biasa 2x sehari je; jam lain hantar kalau CPP mahal (amaran awal)
+  if (regularPing || today.cpp >= CPP_BAD) await sendTelegram(msg);
 
   return NextResponse.json({ ok: true, today, yest, verdict });
 }

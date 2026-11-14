@@ -32,7 +32,9 @@ const JOBS: Job[] = [
   // Penjaga belanja beku — kesan iklan tertiba stop deliver (payment tercekik) tiap jam :50, 10pg-10mlm
   { name: "spend-watch", due: (h, m) => h >= 10 && h <= 22 && m === 50, paths: ["spend-watch"] },
   // SG watchdog — selepas trim RM700, pantau CPP tengah hari & petang (elak tepu/mahal balik)
-  { name: "sg-watch", due: (h, m) => (h === 12 || h === 16) && m === 15, paths: ["sg-watch"] },
+  // 15 Nov: tiap JAM 9pg-11mlm (dulu 2x sehari — 14 Nov SG bakar RM185 0 order tanpa siapa perasan).
+  // Ada pengawal champion (IMG_6851 mesti ON) + cut 0-sale. Telegram biasa 12 & 4ptg je; lain alert bila masalah.
+  { name: "sg-watch", due: (h, m) => h >= 9 && h <= 23 && m === 15, paths: ["sg-watch"] },
   // SG dayparting — hidup Isnin-Sabtu, rehat Ahad (hari clean yg sepi). Tiap hari 00:05 MYT.
   { name: "sg-dayparting", due: (h, m) => h === 0 && m === 5, paths: ["sg-dayparting"] },
   // MY budget tukar start hari baru (clean, bukan jump tengah hari) — target & tarikh dalam endpoint
