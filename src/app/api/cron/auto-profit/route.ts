@@ -41,6 +41,9 @@ const SCALE_TODAY_SPEND_MIN = 100; // RM belanja hari ni minimum sebelum layak s
 // ── Tampung bocor 27 Okt (−RM137): winner pause + duit ke CPP RM78 ──
 const SPEND_BLEED_TODAY = 120;  // RM bakar hari ni sebelum nilai ad "mahal walau ada jualan"
 const CPP_BLEED_TODAY = 55;     // CPP hari ni (Meta) atas ni = rugi dalam (AOV ~RM61) walau ada jualan — potong
+const CPP_BLEED_TODAY_SG = 110; // SG AOV ~SGD55-60 (≈RM180) → had CPP lain (bukan had MY)
+const WINNER_PUR_3D = 10;       // ≥ ni sale 3 hari + CPP 3hr dlm had = winner terbukti → tak dipotong sebab "mahal hari ni"
+const EXPENSIVE_MIN_HOUR_MYT = 14; // rule "mahal hari ni" hanya lepas 2 petang MYT (pagi = catch-up burn + lag atribusi)
 // Auto-hidupkan winner TERBUKTI yg dah REHAT (elak budget bocor ke creative lemah bila winner ter-pause)
 const REVIVE_PUR_14D = 30;      // pembelian 14 hari minimum = winner terbukti (ambang tinggi; 14d separa pixel-berganda)
 const REVIVE_ROAS_14D = 2.5;    // ROAS 14 hari minimum = untung terbukti
@@ -206,7 +209,16 @@ export async function GET(req: Request) {
       const loser3d = a.spend3 >= SPEND_PAUSE_3D && a.roas3 < ROAS_PAUSE * pf; // rugi SAH 3 hari
       const deadToday = a.spendToday >= SPEND_TODAY_DEAD && a.purToday === 0 && a.roas3 < 1.0 * pf; // 0 jualan + bukan winner lag
       // MAHAL HARI NI: ada jualan tapi CPP terlalu tinggi (cth Testimoni Hitam RM78) — rugi walau ada sale
-      const expensiveToday = a.spendToday >= SPEND_BLEED_TODAY && a.purToday > 0 && cppToday > CPP_BLEED_TODAY;
+      // 14 Nov 2026 FIX: rule ni bunuh IMG_0623 (17 sale 12 Nov) pukul 10 pagi & SG IMG_6851 pemenang malam —
+      // MY jatuh 1.39x. Sebab: (1) pagi = burn catch-up + lag atribusi, (2) SG AOV ~RM180 tapi guna CPP had MY,
+      // (3) winner terbukti 3-hari tak patut dibunuh atas satu hari mahal.
+      const isSgAd = /sg/i.test(a.adsetName);
+      const cppLimit = isSgAd ? CPP_BLEED_TODAY_SG : CPP_BLEED_TODAY;
+      const cpp3 = a.pur3 > 0 ? a.spend3 / a.pur3 : Infinity;
+      const provenWinner = a.pur3 >= WINNER_PUR_3D && cpp3 <= cppLimit;
+      const hourMytNow = new Date(Date.now() + 8 * 3600 * 1000).getUTCHours();
+      const expensiveToday = !provenWinner && hourMytNow >= EXPENSIVE_MIN_HOUR_MYT &&
+        a.spendToday >= SPEND_BLEED_TODAY && a.purToday > 0 && cppToday > cppLimit;
       return { loser3d, deadToday, expensiveToday, bleeding: deadToday || expensiveToday, cppToday };
     };
     for (const [, group] of byAdset) {
