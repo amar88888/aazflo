@@ -184,13 +184,35 @@ export type DashboardData = {
 const isOnlinePaid = (o: { paymentMethod: string | null; paidAt: Date | null }) =>
   !!o.paymentMethod && o.paymentMethod !== "cod" && !!o.paidAt;
 
+// Perisai double-count: buang baris order yang SAMA FIZIKAL tapi tersimpan 2 kali
+// (order sama tertulis bawah dua `store` key berbeza — lihat getWooStores URL-dedup
+// & cron dedupe-orders). Order kolision SAH antara kedai (cth MY #68685 vs SG #68685)
+// TAK disatukan kerana buyerName / orderedAt / total berbeza. Ini jaring keselamatan
+// supaya revenue & untung tepat walaupun DB belum dibersihkan.
+function dedupeOrders<T extends { platform: string; platformOrderId: string; buyerName: string | null; orderedAt: Date }>(
+  rows: T[],
+): T[] {
+  const seen = new Set<string>();
+  const out: T[] = [];
+  for (const o of rows) {
+    // Guna masa order (orderedAt) — bukan total — supaya tak bergantung pada penukaran
+    // mata wang. Dua baris order fizikal yang sama ada orderedAt IDENTIK; kolision sah
+    // MY vs SG ada orderedAt berbeza → selamat.
+    const k = `${o.platform}|${o.platformOrderId}|${o.buyerName ?? ""}|${o.orderedAt.getTime()}`;
+    if (seen.has(k)) continue;
+    seen.add(k);
+    out.push(o);
+  }
+  return out;
+}
+
 export async function getDashboardData(r: DashRange): Promise<DashboardData> {
   const feeRates = await getPlatformFees();
 
   // Abaikan order sebelum kita start ads (DATA_START) — data lama tak dikira.
   const floor = r.from < DATA_START ? DATA_START : r.from;
 
-  const [orders, prevOrders] = await Promise.all([
+  const [ordersRaw, prevOrdersRaw] = await Promise.all([
     db.order.findMany({
       where: { orderedAt: { gte: floor, lte: r.to }, status: { in: ACTIVE_STATUSES } },
       include: { items: { include: { product: true } } },
@@ -200,6 +222,9 @@ export async function getDashboardData(r: DashRange): Promise<DashboardData> {
       include: { items: { include: { product: true } } },
     }),
   ]);
+  // Buang baris pendua (order sama tertulis 2 kali) SEBELUM kira apa-apa.
+  const orders = dedupeOrders(ordersRaw);
+  const prevOrders = dedupeOrders(prevOrdersRaw);
   toMyr(orders);
   toMyr(prevOrders);
   const feeOf = (o: { platform: string; platformFee: number; total: number }) =>
@@ -322,7 +347,9 @@ export async function getDashboardData(r: DashRange): Promise<DashboardData> {
   const lowStockCount = supplies.filter((s) => s.currentStock <= s.reorderLevel).length;
 
   // JANGAN toMyr di sini — papar nilai asal order (S$ untuk SG, RM untuk MY).
-  const recent = await db.order.findMany({ orderBy: { orderedAt: "desc" }, take: 6, include: { items: true } });
+  const recent = dedupeOrders(
+    await db.order.findMany({ orderBy: { orderedAt: "desc" }, take: 20, include: { items: true } }),
+  ).slice(0, 6);
   const recentOrders = recent.map((o) => ({
     id: o.id,
     platformOrderId: o.platformOrderId,

@@ -149,9 +149,28 @@ export async function getWooStores(): Promise<WooStore[]> {
       stores.push({ ...s, url: s.url.replace(/\/$/, ""), name: s.name || s.key });
     }
   }
-  // Dedup ikut key (utamakan yang pertama dijumpai)
-  const seen = new Set<string>();
-  return stores.filter((s) => (seen.has(s.key) ? false : (seen.add(s.key), true)));
+  // Dedup ikut KEY dan juga URL (host). Sebab: kedai FIZIKAL yang sama (cth
+  // facelim.com) kadang terdaftar bawah DUA key berbeza — satu via
+  // EXTRA_WOO_STORES, satu lagi via Settings UI. Dedup-by-key sahaja tak tangkap
+  // ini → full-sync fetch kedai sama 2 kali → tiap order ditulis bawah 2 `store`
+  // → DB berganda → dashboard & P&L double-count. Dedup ikut URL hapus punca itu.
+  const seenKey = new Set<string>();
+  const seenUrl = new Set<string>();
+  return stores.filter((s) => {
+    const host = normalizeStoreUrl(s.url);
+    if (seenKey.has(s.key) || seenUrl.has(host)) return false;
+    seenKey.add(s.key);
+    seenUrl.add(host);
+    return true;
+  });
+}
+
+// Normalize URL kedai kepada host sahaja (huruf kecil, buang www/protokol/slash)
+// supaya https://facelim.com, http://www.facelim.com/ dll dikira kedai SAMA.
+export function normalizeStoreUrl(raw: string): string {
+  let s = (raw || "").trim().toLowerCase();
+  s = s.replace(/^https?:\/\//, "").replace(/^www\./, "").replace(/\/+$/, "");
+  return s.split("/")[0];
 }
 
 export async function fetchWooOrders(
