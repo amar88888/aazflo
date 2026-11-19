@@ -41,6 +41,9 @@ const JOBS: Job[] = [
   { name: "my-scaleup", due: (h, m) => h === 0 && m === 6, paths: ["my-scaleup"] },
   // Purge cache semua kedai 04:30 (cache baru siap sebelum subuh & ads bangun 06:00)
   { name: "purge-cache", due: (h, m) => h === 4 && m === 30, paths: ["purge-cache"] },
+  // Repair harian 04:45 (waktu sunyi): kemas SQLite (WAL checkpoint, integrity, optimize)
+  // + buang baris order berganda supaya dashboard stabil & tepat.
+  { name: "repair-harian", due: (h, m) => h === 4 && m === 45, paths: ["maintenance", "dedupe-orders?apply=1"] },
   // Rehat malam DIHENTIKAN 26 Okt (owner setuju): data 6-21 Okt CPP malam cuma ~11% > siang (00-01 lebih murah),
   // jimat ~RM8/hari, tapi pause/resume buat iklan mati 5 jam pagi 25 Okt (Meta minta verified advertiser).
   // Wake kekal sbg pengaman — no-op kecuali ada flag *_malam_paused tertinggal.
