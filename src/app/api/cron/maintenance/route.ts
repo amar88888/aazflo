@@ -43,11 +43,14 @@ export async function GET(req: Request) {
     steps.optimizeError = String(e);
   }
 
+  // PRAGMA pulangkan BigInt — JSON.stringify tak boleh, tukar ke Number dulu.
+  const safe = JSON.parse(JSON.stringify(steps, (_k, v) => (typeof v === "bigint" ? Number(v) : v)));
+
   return NextResponse.json({
     ok: true,
     healthy,
     at: new Date().toISOString(),
-    steps,
+    steps: safe,
     message: healthy
       ? "Maintenance selesai: DB sihat, lock dilepas, fail WAL dikemas."
       : "Maintenance jalan TAPI ada isu — semak steps (integrity/checkpoint).",
