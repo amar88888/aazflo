@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "postbuild": "prisma migrate deploy && node prisma/seed-prod.mjs",
+    "postbuild": "node prisma/migrate-safe.mjs && node prisma/seed-prod.mjs",
     "start": "next start",
     "db:migrate": "prisma migrate dev",
     "db:push": "prisma db push",

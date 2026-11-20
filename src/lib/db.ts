@@ -27,13 +27,20 @@ if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = db;
 // Anti-gelong SQLite: WAL (pembaca tak sekat penulis) + busy_timeout (tunggu lock,
 // jangan terus throw) + synchronous NORMAL. Dijalankan sekali seumur proses.
 // journal_mode=WAL kekal dalam fail DB; busy_timeout per-sambungan (kita ada 1).
-if (!globalForPrisma.pragmas && (process.env.DATABASE_URL ?? "").startsWith("file:")) {
+// PENTING: PRAGMA pulangkan baris → mesti $queryRawUnsafe ($executeRaw throw P2010,
+// dulu buat busy_timeout tak pernah ter-set). Langkau masa `next build` supaya
+// proses build tak rebut lock DB dengan app yang sedang live.
+if (
+  !globalForPrisma.pragmas &&
+  process.env.NEXT_PHASE !== "phase-production-build" &&
+  (process.env.DATABASE_URL ?? "").startsWith("file:")
+) {
   globalForPrisma.pragmas = true;
   void (async () => {
     try {
-      await db.$executeRawUnsafe("PRAGMA journal_mode=WAL;");
-      await db.$executeRawUnsafe("PRAGMA busy_timeout=8000;");
-      await db.$executeRawUnsafe("PRAGMA synchronous=NORMAL;");
+      await db.$queryRawUnsafe("PRAGMA busy_timeout=8000;");
+      await db.$queryRawUnsafe("PRAGMA journal_mode=WAL;");
+      await db.$queryRawUnsafe("PRAGMA synchronous=NORMAL;");
     } catch (e) {
       console.error("[db] gagal set PRAGMA anti-lock:", e);
     }
