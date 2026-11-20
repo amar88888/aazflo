@@ -42,6 +42,25 @@ function fulfilCost(storeKey: string, paymentMethod: string, currency: string): 
   return isCod ? 8 : 6;
 }
 
+// Jenama kedai ikut key (facelim/facelimsg → FACELIM, maxlim/maxlimsg → MAXLIM).
+export function storeBrand(storeKey: string): "FACELIM" | "MAXLIM" | null {
+  if (/^facelim/i.test(storeKey)) return "FACELIM";
+  if (/^maxlim/i.test(storeKey)) return "MAXLIM";
+  return null;
+}
+
+// True kalau SEMUA item order ialah jenama LAIN dari kedai (cth order Maxlim #68318
+// tertulis bawah "facelim" via webhook tersasar → Facelim MY nampak +RM89 palsu).
+export function brandMismatch(items: { name?: string | null }[], storeKey: string): boolean {
+  const brand = storeBrand(storeKey);
+  if (!brand || items.length === 0) return false;
+  const other = brand === "FACELIM" ? "MAXLIM" : "FACELIM";
+  return items.every((i) => {
+    const n = (i.name || "").toUpperCase();
+    return n.includes(other) && !n.includes(brand);
+  });
+}
+
 // Upsert satu order WooCommerce ke DB. Kembalikan sama ada baru / dikemaskini.
 // Mengambil kira tracking Ninja Van + status nv-* supaya AWB yang dah print
 // terus tertanda "printed" dalam Aazflo. `storeKey` = kedai (maxlim/facelim/...).

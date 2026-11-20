@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { upsertWooOrder } from "@/lib/woo-sync";
+import { upsertWooOrder, brandMismatch } from "@/lib/woo-sync";
 import { sendTelegram } from "@/lib/telegram";
 import type { WooOrder } from "@/lib/integrations/woocommerce";
 import { getWooStores } from "@/lib/integrations/woocommerce";
@@ -69,6 +69,15 @@ export async function POST(req: Request) {
       ).catch(() => {});
     }
     return NextResponse.json({ ok: true, ignored: "unknown-store" });
+  }
+
+  // Pengawal jenama: order Maxlim masuk kedai Facelim (atau sebaliknya) = webhook tersasar.
+  // JANGAN ingest — full-sync akan simpan order ni bawah kedai sebenar.
+  if (brandMismatch(wo.line_items, store)) {
+    await sendTelegram(
+      `⚠️ <b>Webhook salah kedai</b>\norder #${wo.id} (${wo.line_items.map((i) => i.name).join(", ").replace(/</g, "&lt;")}) sampai sebagai ${store} — diabaikan.`,
+    ).catch(() => {});
+    return NextResponse.json({ ok: true, ignored: "brand-mismatch", store });
   }
 
   const key = `${store}:${wo.id}`;

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getWooStores } from "@/lib/integrations/woocommerce";
+import { brandMismatch } from "@/lib/woo-sync";
 
 export const dynamic = "force-dynamic";
 
@@ -39,6 +40,7 @@ export async function GET(req: Request) {
       orderedAt: true,
       total: true,
       createdAt: true,
+      items: { select: { name: true } },
     },
   });
 
@@ -59,7 +61,11 @@ export async function GET(req: Request) {
     if (new Set(g.map((o) => o.store)).size < 2) continue; // selamat: mesti merentas store berbeza
 
     // Pilih baris untuk SIMPAN: utamakan store kanonik; jika seri/tiada, yang paling awal.
+    // Utama: baris yang jenama kedainya PADAN dgn barang (order Maxlim kekal bawah maxlim).
     const ranked = [...g].sort((a, b) => {
+      const ma = brandMismatch(a.items, a.store) ? 1 : 0;
+      const mb = brandMismatch(b.items, b.store) ? 1 : 0;
+      if (ma !== mb) return ma - mb;
       const ca = canonical.has(a.store) ? 0 : 1;
       const cb = canonical.has(b.store) ? 0 : 1;
       if (ca !== cb) return ca - cb;
