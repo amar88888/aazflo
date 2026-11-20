@@ -123,9 +123,23 @@ function buildTrend<T extends { orderedAt: Date; total: number }>(orders: T[], p
   return Array.from(map.entries()).map(([date, v]) => ({ date, ...v }));
 }
 
+export type CompareRow = {
+  label: string;
+  kind: "rm" | "num" | "x" | "pct";
+  cur: number | null;
+  prev: number | null;
+  costUp?: boolean; // kos: naik = buruk (merah)
+  diff?: number | null;
+  pct?: number | null;
+};
+
 export type DashboardData = {
   periodLabel: string;
   deltaLabel: string;
+  prevLabel: string; // cth "semalam (masa sama)"
+  compare: CompareRow[];
+  revenuePrev: number; // nilai tempoh sebelum (masa sama) — untuk konteks bila % tak bermakna
+  profitPrev: number;
   revenue: number;
   profit: number;
   orders: number;
@@ -212,13 +226,21 @@ export async function getDashboardData(r: DashRange): Promise<DashboardData> {
   // Abaikan order sebelum kita start ads (DATA_START) — data lama tak dikira.
   const floor = r.from < DATA_START ? DATA_START : r.from;
 
+  // Banding ADIL: kalau tempoh semasa belum habis (cth "Hari Ni" pukul 11 pagi), banding dengan
+  // tempoh sebelum SAMPAI MASA YANG SAMA (semalam pukul 11 pagi) — bukan tempoh sebelum penuh.
+  // Dulu pagi-pagi dashboard nampak "▼80% vs semalam" palsu sebab separuh hari lawan sehari penuh.
+  const elapsed = Math.min(r.to.getTime(), Date.now()) - r.from.getTime();
+  const prevCut = new Date(Math.max(r.prevFrom.getTime(), Math.min(r.prevTo.getTime(), r.prevFrom.getTime() + elapsed)));
+  const partial = prevCut.getTime() < r.prevTo.getTime() - 60_000;
+  const deltaLabel = partial ? `${r.deltaLabel} · masa sama` : r.deltaLabel;
+
   const [ordersRaw, prevOrdersRaw] = await Promise.all([
     db.order.findMany({
       where: { orderedAt: { gte: floor, lte: r.to }, status: { in: ACTIVE_STATUSES } },
       include: { items: { include: { product: true } } },
     }),
     db.order.findMany({
-      where: { orderedAt: { gte: r.prevFrom, lte: r.prevTo }, status: { in: ACTIVE_STATUSES } },
+      where: { orderedAt: { gte: r.prevFrom, lte: prevCut }, status: { in: ACTIVE_STATUSES } },
       include: { items: { include: { product: true } } },
     }),
   ]);
@@ -235,7 +257,8 @@ export async function getDashboardData(r: DashRange): Promise<DashboardData> {
 
   const sumRev = (a: typeof orders) => a.reduce((s, o) => s + o.total, 0);
   const sumProfit = (a: typeof orders) => a.reduce((s, o) => s + profitOf(o), 0);
-  const delta = (a: number, b: number) => (b > 0 ? ((a - b) / b) * 100 : a > 0 ? 100 : null);
+  // % hanya bila asas positif. Asas 0/rugi → null (UI tunjuk "dari rugi RMx", bukan 100% palsu).
+  const delta = (a: number, b: number) => (b > 0 ? ((a - b) / b) * 100 : null);
 
   const revenue = sumRev(orders);
   const orderCount = orders.length;
@@ -254,8 +277,43 @@ export async function getDashboardData(r: DashRange): Promise<DashboardData> {
   // banding bersih-lawan-bersih, bukan bersih-lawan-kasar (dulu buat delta nampak merudum palsu).
   const prevFloor = r.prevFrom < DATA_START ? DATA_START : r.prevFrom;
   const prevExpenses = await db.expense.findMany({ where: { date: { gte: prevFloor, lte: r.prevTo } } });
-  const prevTotalExpenses = prevExpenses.reduce((s, e) => s + e.amount, 0);
+  // Kos iklan disimpan 1 baris/hari → untuk banding "masa sama", ambil bahagian hari yang dah lepas
+  // sahaja (cth semalam sampai 11 pagi = 11/24 dari iklan semalam).
+  const fracOf = (e: { date: Date }) =>
+    Math.max(0, Math.min(1, (prevCut.getTime() - startOfDay(e.date).getTime()) / 86_400_000));
+  const prevTotalExpenses = prevExpenses.reduce((s, e) => s + e.amount * fracOf(e), 0);
+  const prevAds = prevExpenses.filter((e) => e.type === "ads").reduce((s, e) => s + e.amount * fracOf(e), 0);
   const prevNetProfit = sumProfit(prevOrders) - prevTotalExpenses;
+
+  // 📊 Bandingan AUTO semua sudut — server kira, dashboard papar (tiada kira manual).
+  const prevRevenue = sumRev(prevOrders);
+  const prevCogs = prevOrders.reduce((s, o) => s + cogsOf(o), 0);
+  const prevShip = prevOrders.reduce((s, o) => s + feeOf(o) + (o.shippingFee || 0), 0);
+  const prevCod = prevOrders.filter((o) => o.paymentMethod === "cod");
+  const curCod = orders.filter((o) => o.paymentMethod === "cod");
+  const ratio = (a: number, b: number) => (b > 0 ? a / b : null);
+  const compareBase: CompareRow[] = [
+    { label: "Sales", kind: "rm", cur: revenue, prev: prevRevenue },
+    { label: "Bil. order", kind: "num", cur: orders.length, prev: prevOrders.length },
+    { label: "AOV", kind: "rm", cur: ratio(revenue, orders.length), prev: ratio(prevRevenue, prevOrders.length) },
+    { label: "Order COD", kind: "num", cur: curCod.length, prev: prevCod.length },
+    { label: "Duit iklan", kind: "rm", cur: adsSpend, prev: prevAds, costUp: true },
+    { label: "ROAS", kind: "x", cur: ratio(revenue, adsSpend), prev: ratio(prevRevenue, prevAds) },
+    { label: "Kos iklan / order", kind: "rm", cur: ratio(adsSpend, orders.length), prev: ratio(prevAds, prevOrders.length), costUp: true },
+    { label: "Nett Sales", kind: "rm", cur: revenue - adsSpend, prev: prevRevenue - prevAds },
+    { label: "Kos produk", kind: "rm", cur: cogsTotal, prev: prevCogs, costUp: true },
+    { label: "Shipping & fee", kind: "rm", cur: shipFeeTotal, prev: prevShip, costUp: true },
+    { label: "Kos lain", kind: "rm", cur: totalExpenses - adsSpend, prev: prevTotalExpenses - prevAds, costUp: true },
+    { label: "Profit Bersih", kind: "rm", cur: profit, prev: prevNetProfit },
+    { label: "Margin", kind: "pct", cur: revenue > 0 ? (profit / revenue) * 100 : null, prev: prevRevenue > 0 ? (prevNetProfit / prevRevenue) * 100 : null },
+  ];
+  const compare: CompareRow[] = compareBase.map((row) => {
+    const { cur, prev } = row;
+    const diff = cur != null && prev != null ? cur - prev : null;
+    // % hanya bila asas positif & bukan nisbah (ROAS/margin guna beza mata, bukan %).
+    const pct = row.kind !== "x" && row.kind !== "pct" && cur != null && prev != null && prev > 0 ? ((cur - prev) / prev) * 100 : null;
+    return { ...row, diff, pct };
+  });
 
   // Bayaran: online (duit dah masuk) vs COD (kutip masa hantar)
   const onlineOrders = orders.filter(isOnlinePaid);
@@ -366,7 +424,11 @@ export async function getDashboardData(r: DashRange): Promise<DashboardData> {
 
   return {
     periodLabel: r.label,
-    deltaLabel: r.deltaLabel,
+    deltaLabel,
+    prevLabel: partial ? `${r.deltaLabel.replace(/^vs /, "")} (masa sama)` : r.deltaLabel.replace(/^vs /, ""),
+    compare,
+    revenuePrev: sumRev(prevOrders),
+    profitPrev: prevNetProfit,
     revenue,
     profit,
     orders: orderCount,

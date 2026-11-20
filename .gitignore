@@ -14,3 +14,8 @@ data/receipts/
 tmp-prev.js
 
 .env.production
+
+# memori Claude (data bisnes, jangan push)
+MEMORY.md
+prisma/*.db-shm
+prisma/*.db-wal

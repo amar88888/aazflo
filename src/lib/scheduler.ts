@@ -2,7 +2,7 @@
 // yang disekat proxy). Setiap job panggil route /api/cron/* sendiri melalui localhost.
 //
 // Waktu ikut Malaysia (UTC+8):
-//   • sync-ads-expense (hari ni + semalam) — setiap jam :10
+//   • sync-ads-expense (hari ni + semalam) — setiap 15 minit (:10 :25 :40 :55)
 //   • sync-woo + sync-stripe (backup webhook)  — setiap 3 jam :35
 //   • auto-profit (scale performer / pause rugi selamat) — tiap 2 jam :06
 //   • laporan pagi Telegram                     — 08:00 (sync dulu, lepas tu hantar)
@@ -12,7 +12,8 @@ import { sendTelegram } from "@/lib/telegram";
 type Job = { name: string; due: (h: number, m: number) => boolean; paths: string[] };
 
 const JOBS: Job[] = [
-  { name: "iklan", due: (_h, m) => m === 10, paths: ["sync-ads-expense?days=2"] },
+  // 20 Nov: tiap 15 min (dulu sejam) — dashboard lag RM31 dari Meta; untung & % mesti sentiasa terkini.
+  { name: "iklan", due: (_h, m) => m % 15 === 10, paths: ["sync-ads-expense?days=2"] },
   // sync-woo tiap JAM (backup kalau webhook real-time terlepas) + stripe tiap 3 jam
   { name: "sync", due: (_h, m) => m === 35, paths: ["sync-woo"] },
   { name: "sync-stripe", due: (h, m) => h % 3 === 0 && m === 40, paths: ["sync-stripe?days=2"] },

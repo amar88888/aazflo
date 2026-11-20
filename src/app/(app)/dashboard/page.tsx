@@ -4,6 +4,7 @@ import {
   resolveCustomRange,
   DASHBOARD_PERIODS,
   type DashboardPeriod,
+  type CompareRow,
 } from "@/lib/queries";
 import { PeriodPicker } from "./period-picker";
 import { formatRM, formatPercent, formatDateTime } from "@/lib/format";
@@ -30,11 +31,28 @@ const STATUS_DOT: Record<string, string> = {
 const rm0 = (v: number) => `${v < 0 ? "-" : ""}RM ${Math.abs(v).toLocaleString("en-MY", { maximumFractionDigits: 0 })}`;
 const pctOf = (v: number, total: number) => (total > 0 ? (v / total) * 100 : 0);
 
-function Delta({ v, label }: { v: number | null; label: string }) {
-  if (v == null) return null;
+// % yang masuk akal: bila asas sebelum terlalu kecil (cth untung semalam RM15 → 7772%),
+// tunjuk "300%+" berserta nilai sebelum. Asas rugi/0 → tunjuk dari berapa, bukan % palsu.
+const DELTA_CAP = 300;
+function Delta({ v, cur, prev, label }: { v: number | null; cur: number; prev: number; label: string }) {
+  const up = v != null ? v >= 0 : cur >= prev;
+  const cls = `mt-1 text-xs font-medium ${up ? "text-emerald-300" : "text-rose-300"}`;
+  if (v == null) {
+    if (cur === 0 && prev === 0) return null;
+    return (
+      <p className={cls}>
+        {up ? "▲" : "▼"} <span className="t-sub font-normal">{label}: {prev < 0 ? `rugi ${rm0(-prev)}` : rm0(prev)}</span>
+      </p>
+    );
+  }
+  const capped = Math.abs(v) > DELTA_CAP;
   return (
-    <p className={`mt-1 text-xs font-medium ${v >= 0 ? "text-emerald-300" : "text-rose-300"}`}>
-      {v >= 0 ? "▲" : "▼"} {Math.abs(v).toFixed(0)}% <span className="t-sub font-normal">{label}</span>
+    <p className={cls}>
+      {up ? "▲" : "▼"} {capped ? `${DELTA_CAP}%+` : `${Math.abs(v).toFixed(0)}%`}{" "}
+      <span className="t-sub font-normal">
+        {label}
+        {capped && ` (${rm0(prev)})`}
+      </span>
     </p>
   );
 }
@@ -61,6 +79,69 @@ function Kpi({
       <p className={`stat-value mt-1.5 text-xl font-bold tracking-tight tabular-nums sm:text-2xl ${tone}`}>{value}</p>
       {children}
     </div>
+  );
+}
+
+// Format nilai bandingan ikut jenis
+function fmtVal(kind: CompareRow["kind"], v: number | null): string {
+  if (v == null) return "—";
+  if (kind === "rm") return rm0(v);
+  if (kind === "x") return `${v.toFixed(2)}×`;
+  if (kind === "pct") return `${v.toFixed(1)}%`;
+  return v.toLocaleString("en-MY", { maximumFractionDigits: 0 });
+}
+function fmtDiff(kind: CompareRow["kind"], v: number): string {
+  const s = v > 0 ? "+" : v < 0 ? "−" : "";
+  const a = Math.abs(v);
+  if (kind === "rm") return `${s}RM ${a.toLocaleString("en-MY", { maximumFractionDigits: 0 })}`;
+  if (kind === "x") return `${s}${a.toFixed(2)}×`;
+  if (kind === "pct") return `${s}${a.toFixed(1)} mata`;
+  return `${s}${a.toLocaleString("en-MY", { maximumFractionDigits: 0 })}`;
+}
+
+// 📊 Bandingan auto — setiap sudut kiraan, server yang kira (tempoh semasa vs sebelum, masa sama).
+function CompareCard({ rows, curLabel, prevLabel }: { rows: CompareRow[]; curLabel: string; prevLabel: string }) {
+  return (
+    <Card>
+      <SectionTitle right="auto · kemaskini setiap 15 min">📊 Bandingan Auto</SectionTitle>
+      <div className="-mx-1 overflow-x-auto">
+        <table className="w-full text-xs tabular-nums sm:text-sm">
+          <thead>
+            <tr className="text-left text-[11px] uppercase tracking-wider text-slate-500">
+              <th className="px-1 py-1.5 font-semibold">Metrik</th>
+              <th className="px-1 py-1.5 text-right font-semibold">{curLabel}</th>
+              <th className="px-1 py-1.5 text-right font-semibold">{prevLabel}</th>
+              <th className="px-1 py-1.5 text-right font-semibold">Perubahan</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((r) => {
+              const good = r.diff == null || r.diff === 0 ? null : r.costUp ? r.diff < 0 : r.diff > 0;
+              const cls = good == null ? "text-slate-400" : good ? "text-emerald-300" : "text-rose-300";
+              const bold = r.label === "Profit Bersih" || r.label === "Sales";
+              return (
+                <tr key={r.label} className={`border-t border-white/5 ${bold ? "font-semibold" : ""}`}>
+                  <td className="px-1 py-1.5 text-slate-600">{r.label}</td>
+                  <td className="px-1 py-1.5 text-right text-white">{fmtVal(r.kind, r.cur)}</td>
+                  <td className="px-1 py-1.5 text-right text-slate-400">{fmtVal(r.kind, r.prev)}</td>
+                  <td className={`px-1 py-1.5 text-right ${cls}`}>
+                    {r.diff == null ? "—" : fmtDiff(r.kind, r.diff)}
+                    {r.pct != null && (
+                      <span className="ml-1 text-[11px] opacity-80">
+                        ({Math.abs(r.pct) > DELTA_CAP ? `${r.pct > 0 ? "+" : "−"}${DELTA_CAP}%+` : `${r.pct > 0 ? "+" : r.pct < 0 ? "−" : ""}${Math.abs(r.pct).toFixed(0)}%`})
+                      </span>
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+      <p className="mt-2 text-[11px] text-slate-500">
+        Banding {prevLabel}. Iklan tempoh lepas dikira ikut bahagian hari yang sama. % tak ditunjuk bila asas 0/rugi; lebih 300% ditunjuk "300%+".
+      </p>
+    </Card>
   );
 }
 
@@ -153,7 +234,7 @@ export default async function DashboardPage({
       {/* 1) Aliran duit: Sales → Iklan → Nett Sales → Profit Bersih */}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Kpi label="Sales" value={rm0(d.revenue)}>
-          <Delta v={d.revenueDeltaPct} label={d.deltaLabel} />
+          <Delta v={d.revenueDeltaPct} cur={d.revenue} prev={d.revenuePrev} label={d.deltaLabel} />
         </Kpi>
         <Kpi label="Duit Iklan" value={rm0(d.adsSpend)} tone="text-rose-200">
           <p className={`mt-1 text-xs font-medium ${d.roas !== null && d.roas < 1.65 ? "text-rose-300" : "text-emerald-300"}`}>
@@ -164,10 +245,13 @@ export default async function DashboardPage({
           <p className="t-sub mt-1 text-xs">Sales tolak iklan</p>
         </Kpi>
         <Kpi label="Profit Bersih" value={rm0(d.profit)} tone={profitTone} highlight={d.profit >= 0 ? "green" : "red"}>
-          <Delta v={d.profitDeltaPct} label={d.deltaLabel} />
+          <Delta v={d.profitDeltaPct} cur={d.profit} prev={d.profitPrev} label={d.deltaLabel} />
           <p className="t-sub text-xs">Margin {formatPercent(d.marginPct)}</p>
         </Kpi>
       </div>
+
+      {/* 1b) Bandingan auto semua sudut */}
+      <CompareCard rows={d.compare} curLabel={d.periodLabel} prevLabel={d.prevLabel} />
 
       {/* 2) Cara bayar + Target */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
