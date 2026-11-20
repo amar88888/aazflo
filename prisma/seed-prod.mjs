@@ -37,6 +37,11 @@ async function main() {
 
 main()
   .catch((e) => {
+    // DB locked oleh app live masa deploy → produk dah wujud, jangan gagalkan deploy.
+    if (/database is locked|SQLITE_BUSY/i.test(String(e?.message ?? e))) {
+      console.warn("[seed-prod] DB locked oleh app live — langkau seed (produk sedia ada).");
+      process.exit(0);
+    }
     console.error("[seed-prod] gagal:", e);
     process.exit(1);
   })
