@@ -16,7 +16,24 @@ const current = readdirSync("prisma/migrations", { withFileTypes: true })
   .map((d) => d.name);
 const fresh = current.filter((m) => !applied.includes(m));
 
-const TRIES = fresh.length ? 12 : 3;
+// Sama dengan SAFE dalam src/lib/runtime-migrate.ts — kemaskini kedua-dua sekali.
+const SAFE = /^(CREATE (UNIQUE )?INDEX|CREATE TABLE|ALTER TABLE "[^"]+" ADD COLUMN)\b/i;
+function additiveOnly(name) {
+  const f = `prisma/migrations/${name}/migration.sql`;
+  if (!existsSync(f)) return true;
+  return readFileSync(f, "utf8")
+    .replace(/\r\n/g, "\n")
+    .split("\n")
+    .filter((l) => !l.trim().startsWith("--"))
+    .join("\n")
+    .split(/;\s*(?:\n|$)/)
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .every((s) => SAFE.test(s));
+}
+
+// Migration tambah-sahaja boleh ditangguh ke runtime → tak perlu tunggu 2 minit.
+const TRIES = fresh.length && !fresh.every(additiveOnly) ? 12 : 3;
 const WAIT_MS = 10_000;
 const sleep = (ms) => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
 
@@ -38,6 +55,14 @@ for (let i = 1; i <= TRIES; i++) {
     } else if (fresh.length === 0) {
       console.warn(
         `[migrate-safe] DB locked oleh app live, tapi TIADA migration baru (${current.length} semua dah applied) → langkau migrate.`,
+      );
+      process.exit(0);
+    } else if (fresh.every(additiveOnly)) {
+      // Lock eksklusif Prisma takkan dapat selagi app live hidup. Migration ni cuma
+      // tambah (CREATE/ADD COLUMN) → app baru apply sendiri masa start
+      // (src/lib/runtime-migrate.ts, dipanggil dari instrumentation.ts).
+      console.warn(
+        `[migrate-safe] DB locked — migration tambah-sahaja ditangguh ke runtime-migrate masa app start: ${fresh.join(", ")}`,
       );
       process.exit(0);
     } else {

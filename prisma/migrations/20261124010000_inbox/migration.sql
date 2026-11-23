@@ -1,7 +1,9 @@
--- RedefineTables
-PRAGMA defer_foreign_keys=ON;
-PRAGMA foreign_keys=OFF;
-CREATE TABLE "new_WaContact" (
+-- Inbox (WhatsApp + Messenger + IG) — gabungan 20261123140105_whatsapp_inbox +
+-- 20261123163301_inbox_bot_channels (kedua-dua TAK PERNAH sampai prod; deploy 02757c1 gagal locked).
+-- CREATE sahaja (tiada redefine/PRAGMA) supaya runtime-migrate boleh apply semasa app hidup.
+
+-- CreateTable
+CREATE TABLE "WaContact" (
     "id" TEXT NOT NULL PRIMARY KEY,
     "waId" TEXT NOT NULL,
     "channel" TEXT NOT NULL DEFAULT 'whatsapp',
@@ -17,13 +19,9 @@ CREATE TABLE "new_WaContact" (
     "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" DATETIME NOT NULL
 );
-INSERT INTO "new_WaContact" ("archived", "createdAt", "id", "lastInboundAt", "lastMessageAt", "name", "tag", "unread", "updatedAt", "waId") SELECT "archived", "createdAt", "id", "lastInboundAt", "lastMessageAt", "name", "tag", "unread", "updatedAt", "waId" FROM "WaContact";
-DROP TABLE "WaContact";
-ALTER TABLE "new_WaContact" RENAME TO "WaContact";
-CREATE UNIQUE INDEX "WaContact_waId_key" ON "WaContact"("waId");
-CREATE INDEX "WaContact_lastMessageAt_idx" ON "WaContact"("lastMessageAt");
-CREATE INDEX "WaContact_archived_idx" ON "WaContact"("archived");
-CREATE TABLE "new_WaMessage" (
+
+-- CreateTable
+CREATE TABLE "WaMessage" (
     "id" TEXT NOT NULL PRIMARY KEY,
     "contactId" TEXT NOT NULL,
     "waMsgId" TEXT,
@@ -38,10 +36,18 @@ CREATE TABLE "new_WaMessage" (
     "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT "WaMessage_contactId_fkey" FOREIGN KEY ("contactId") REFERENCES "WaContact" ("id") ON DELETE CASCADE ON UPDATE CASCADE
 );
-INSERT INTO "new_WaMessage" ("body", "contactId", "createdAt", "direction", "error", "id", "mediaId", "status", "timestamp", "type", "waMsgId") SELECT "body", "contactId", "createdAt", "direction", "error", "id", "mediaId", "status", "timestamp", "type", "waMsgId" FROM "WaMessage";
-DROP TABLE "WaMessage";
-ALTER TABLE "new_WaMessage" RENAME TO "WaMessage";
+
+-- CreateIndex
+CREATE UNIQUE INDEX "WaContact_waId_key" ON "WaContact"("waId");
+
+-- CreateIndex
+CREATE INDEX "WaContact_lastMessageAt_idx" ON "WaContact"("lastMessageAt");
+
+-- CreateIndex
+CREATE INDEX "WaContact_archived_idx" ON "WaContact"("archived");
+
+-- CreateIndex
 CREATE UNIQUE INDEX "WaMessage_waMsgId_key" ON "WaMessage"("waMsgId");
+
+-- CreateIndex
 CREATE INDEX "WaMessage_contactId_timestamp_idx" ON "WaMessage"("contactId", "timestamp");
-PRAGMA foreign_keys=ON;
-PRAGMA defer_foreign_keys=OFF;
