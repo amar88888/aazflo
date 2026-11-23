@@ -1,0 +1,5 @@
+# Folder migration yang DAH DIBUANG dari repo tapi mungkin masih ada di server Velocity
+# (deploy Velocity tak padam fail lama). migrate-safe.mjs padam folder ni sebelum migrate.
+# Digabung jadi 20261124010000_inbox (24 Nov 2026) — tak pernah applied di prod.
+20261123140105_whatsapp_inbox
+20261123163301_inbox_bot_channels

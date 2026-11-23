@@ -1,7 +1,25 @@
 // Jalankan `prisma migrate deploy` dengan CUBA SEMULA bila SQLite "database is locked".
 // App live (PM2) pegang lock DB masa Velocity build → dulu deploy terus FAILED (rc=1).
 import { execSync } from "node:child_process";
-import { readdirSync, readFileSync, existsSync } from "node:fs";
+import { readdirSync, readFileSync, existsSync, rmSync } from "node:fs";
+
+// Velocity TAK padam folder yang dah dibuang dari git (deploy 79a495f nampak
+// 11 migration, sepatutnya 9). Migration yang dah digabung/dibuang mesti
+// disenarai di sini supaya dipadam dari server sebelum migrate.
+const listFile = (f) =>
+  existsSync(f)
+    ? readFileSync(f, "utf8")
+        .split("\n")
+        .map((x) => x.trim())
+        .filter((x) => x && !x.startsWith("#"))
+    : [];
+for (const name of listFile("prisma/migrations-obsolete.txt")) {
+  const dir = `prisma/migrations/${name}`;
+  if (existsSync(dir)) {
+    rmSync(dir, { recursive: true, force: true });
+    console.log(`[migrate-safe] padam migration usang: ${name}`);
+  }
+}
 
 // Migration yang SAH dah dijalankan di prod. Kemaskini fail ni SELEPAS migration baru
 // berjaya di-deploy. Kalau DB locked & tiada migration baru → selamat langkau migrate.
