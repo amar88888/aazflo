@@ -2,15 +2,19 @@
 
 import { db } from "@/lib/db";
 import { toWaId } from "@/lib/whatsapp";
-import { sendToContact } from "@/lib/inbox-send";
+import { sendToContact, isCommentChannel } from "@/lib/inbox-send";
 import { revalidatePath } from "next/cache";
 
 const WINDOW_MS = 24 * 60 * 60 * 1000;
 
+// Komen FB/IG dibalas awam — tiada had 24 jam. Mesej (WA/Messenger/IG DM) ikut tetingkap 24j.
+const canReply = (channel: string, lastInboundAt: Date | null, now = Date.now()) =>
+  isCommentChannel(channel) || (!!lastInboundAt && now - lastInboundAt.getTime() < WINDOW_MS);
+
 export type Conversation = {
   id: string;
   waId: string;
-  channel: string; // whatsapp | messenger | instagram
+  channel: string; // whatsapp | messenger | instagram | fb_comment | ig_comment
   name: string | null;
   unread: number;
   lastMessageAt: string | null;
@@ -57,7 +61,7 @@ export async function listConversations(): Promise<Conversation[]> {
       preview: last?.body ?? "",
       lastDirection: last?.direction ?? null,
       lastBot: !!last?.bot,
-      windowOpen: !!c.lastInboundAt && now - c.lastInboundAt.getTime() < WINDOW_MS,
+      windowOpen: canReply(c.channel, c.lastInboundAt, now),
       done: c.archived,
       needsHuman: c.needsHuman,
       botPaused: c.botPaused,
@@ -111,7 +115,7 @@ export async function getThread(contactId: string): Promise<{
       channel: contact.channel,
       name: contact.name,
       lastInboundAt: contact.lastInboundAt?.toISOString() ?? null,
-      windowOpen: !!contact.lastInboundAt && now - contact.lastInboundAt.getTime() < WINDOW_MS,
+      windowOpen: canReply(contact.channel, contact.lastInboundAt, now),
       botPaused: contact.botPaused,
       needsHuman: contact.needsHuman,
     },
@@ -139,7 +143,7 @@ export async function sendReply(
   const contact = await db.waContact.findUnique({ where: { id: contactId } });
   if (!contact) return { ok: false, error: "Kontak tak dijumpai." };
 
-  const windowOpen = !!contact.lastInboundAt && Date.now() - contact.lastInboundAt.getTime() < WINDOW_MS;
+  const windowOpen = canReply(contact.channel, contact.lastInboundAt);
   if (!windowOpen) {
     return { ok: false, error: "Tetingkap 24 jam dah tamat — pelanggan kena mesej dulu." };
   }

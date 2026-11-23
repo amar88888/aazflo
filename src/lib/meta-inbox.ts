@@ -53,6 +53,54 @@ export async function sendMetaMessage(
   }
 }
 
+// ── Komen FB / IG ──
+// Balas awam pada komen: FB → POST /{comment-id}/comments, IG → POST /{comment-id}/replies
+export async function replyToComment(
+  channel: "fb_comment" | "ig_comment",
+  pageOrIgId: string | null,
+  commentId: string,
+  text: string,
+): Promise<{ ok: boolean; msgId?: string; error?: string }> {
+  const creds = await getMetaInbox();
+  const page = pageFor(creds, pageOrIgId);
+  if (!page) return { ok: false, error: "Page/IG belum disambung di Settings." };
+  const edge = channel === "ig_comment" ? "replies" : "comments";
+  try {
+    const res = await fetch(`${GRAPH}/${commentId}/${edge}`, {
+      method: "POST",
+      body: new URLSearchParams({ message: text, access_token: page.accessToken }),
+    });
+    const j = (await res.json().catch(() => ({}))) as { id?: string; error?: { message?: string } };
+    if (!res.ok || j.error) return { ok: false, error: j.error?.message || `HTTP ${res.status}` };
+    return { ok: true, msgId: j.id };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Ralat rangkaian." };
+  }
+}
+
+// Private reply: DM kepada orang yang komen (sekali per komen, dalam 7 hari).
+export async function privateReplyToComment(
+  pageOrIgId: string | null,
+  commentId: string,
+  text: string,
+): Promise<{ ok: boolean; msgId?: string; error?: string }> {
+  const creds = await getMetaInbox();
+  const page = pageFor(creds, pageOrIgId);
+  if (!page) return { ok: false, error: "Page/IG belum disambung di Settings." };
+  try {
+    const res = await fetch(`${GRAPH}/me/messages?access_token=${encodeURIComponent(page.accessToken)}`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ recipient: { comment_id: commentId }, message: { text } }),
+    });
+    const j = (await res.json().catch(() => ({}))) as { message_id?: string; error?: { message?: string } };
+    if (!res.ok || j.error) return { ok: false, error: j.error?.message || `HTTP ${res.status}` };
+    return { ok: true, msgId: j.message_id };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Ralat rangkaian." };
+  }
+}
+
 // Nama profil pelanggan (sekali, masa kontak baru)
 export async function fetchMetaProfileName(
   channel: "messenger" | "instagram",
@@ -84,7 +132,11 @@ export async function connectPagesFromUserToken(userToken: string): Promise<{ ok
     error?: { message?: string };
   };
   if (j.error) return { ok: false, pages: [], notes: [j.error.message ?? "Gagal baca page"] };
-  const pages: MetaPage[] = (j.data ?? []).map((p) => ({
+  // Hanya page jenama EVIOR — bot jawab produk Maxlim/Facelim, jangan sentuh page lain
+  // (token Amar nampak juga Maajun Raja Dhab, Mekar Spa, dll).
+  const isEvior = (n: string) => /evior|maxlim|facelim/i.test(n);
+  for (const p of j.data ?? []) if (!isEvior(p.name)) notes.push(`– ${p.name}: dilangkau (bukan page EVIOR)`);
+  const pages: MetaPage[] = (j.data ?? []).filter((p) => isEvior(p.name)).map((p) => ({
     pageId: p.id,
     name: p.name,
     accessToken: p.access_token,
@@ -95,7 +147,7 @@ export async function connectPagesFromUserToken(userToken: string): Promise<{ ok
     const s = await fetch(`${GRAPH}/${p.pageId}/subscribed_apps`, {
       method: "POST",
       body: new URLSearchParams({
-        subscribed_fields: "messages,messaging_postbacks",
+        subscribed_fields: "messages,messaging_postbacks,feed",
         access_token: p.accessToken,
       }),
     });
@@ -109,8 +161,8 @@ export async function connectPagesFromUserToken(userToken: string): Promise<{ ok
 export async function registerMetaWebhooks(appId: string, appSecret: string, callbackUrl: string, verifyToken: string) {
   const out: string[] = [];
   for (const [object, fields] of [
-    ["page", "messages,messaging_postbacks"],
-    ["instagram", "messages"],
+    ["page", "messages,messaging_postbacks,feed"],
+    ["instagram", "messages,comments"],
   ] as const) {
     const r = await fetch(`${GRAPH}/${appId}/subscriptions`, {
       method: "POST",

@@ -23,17 +23,21 @@ const TABS: { key: Tab; label: string }[] = [
   { key: "selesai", label: "Selesai" },
   { key: "semua", label: "Semua" },
 ];
-type Ch = "all" | "whatsapp" | "messenger" | "instagram";
+type Ch = "all" | "whatsapp" | "messenger" | "instagram" | "fb_comment" | "ig_comment";
 const CHANNELS: { key: Ch; label: string }[] = [
   { key: "all", label: "Semua" },
   { key: "whatsapp", label: "WhatsApp" },
   { key: "messenger", label: "Messenger" },
   { key: "instagram", label: "IG DM" },
+  { key: "fb_comment", label: "Komen FB" },
+  { key: "ig_comment", label: "Komen IG" },
 ];
 const CH_STYLE: Record<string, { dot: string; label: string; avatar: string }> = {
   whatsapp: { dot: "bg-emerald-500", label: "WhatsApp", avatar: "from-emerald-400 to-teal-500" },
   messenger: { dot: "bg-blue-500", label: "Messenger", avatar: "from-blue-400 to-indigo-500" },
   instagram: { dot: "bg-pink-500", label: "Instagram", avatar: "from-pink-400 to-orange-400" },
+  fb_comment: { dot: "bg-sky-500", label: "Komen Facebook", avatar: "from-sky-400 to-blue-600" },
+  ig_comment: { dot: "bg-fuchsia-500", label: "Komen Instagram", avatar: "from-fuchsia-400 to-rose-500" },
 };
 
 function inTab(c: Conversation, t: Tab) {
@@ -253,7 +257,7 @@ export function InboxClient({ initial }: { initial: Conversation[] }) {
                 <div
                   className={`flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br ${CH_STYLE[c.channel]?.avatar ?? CH_STYLE.whatsapp.avatar} text-sm font-semibold text-white`}
                 >
-                  {(c.name ?? c.waId.replace(/^(fb|ig):/, "")).slice(0, 2).toUpperCase()}
+                  {(c.name ?? c.waId.replace(/^(fbc|igc|fb|ig):/, "")).slice(0, 2).toUpperCase()}
                 </div>
                 <span className={`absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-white ${CH_STYLE[c.channel]?.dot ?? "bg-slate-400"}`} />
               </div>
@@ -299,7 +303,7 @@ export function InboxClient({ initial }: { initial: Conversation[] }) {
               <div
                 className={`flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br ${CH_STYLE[sel.channel]?.avatar ?? CH_STYLE.whatsapp.avatar} text-xs font-semibold text-white`}
               >
-                {(sel.name ?? sel.waId.replace(/^(fb|ig):/, "")).slice(0, 2).toUpperCase()}
+                {(sel.name ?? sel.waId.replace(/^(fbc|igc|fb|ig):/, "")).slice(0, 2).toUpperCase()}
               </div>
               <div className="min-w-0">
                 <p className="truncate text-sm font-semibold text-slate-800">{sel.name || ident(sel)}</p>
@@ -329,7 +333,7 @@ export function InboxClient({ initial }: { initial: Conversation[] }) {
                     windowOpen ? "bg-emerald-50 text-emerald-600" : "bg-amber-50 text-amber-600"
                   }`}
                 >
-                  {windowOpen ? "Boleh balas (24j)" : "Tetingkap tutup"}
+                  {sel.channel.endsWith("_comment") ? "Balas awam pada komen" : windowOpen ? "Boleh balas (24j)" : "Tetingkap tutup"}
                 </span>
               </div>
             </div>

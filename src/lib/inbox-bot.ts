@@ -2,7 +2,8 @@ import { db } from "@/lib/db";
 import { loadCredentials } from "@/lib/credentials";
 import { getWooStores, type WooStore } from "@/lib/integrations/woocommerce";
 import { sendTelegram } from "@/lib/telegram";
-import { sendToContact } from "@/lib/inbox-send";
+import { sendToContact, isCommentChannel } from "@/lib/inbox-send";
+import { replyToComment, privateReplyToComment } from "@/lib/meta-inbox";
 
 // ── Bot auto-reply AI (Gemini) untuk Inbox (WhatsApp / Messenger / IG) ──
 // Prinsip:
@@ -126,7 +127,7 @@ async function findOrdersByPhone(waId: string): Promise<string[]> {
 }
 
 // ── Prompt ──
-function systemPrompt(catalog: Product[], faq: string, orders: string[], name: string | null) {
+function systemPrompt(catalog: Product[], faq: string, orders: string[], name: string | null, isComment = false) {
   const now = new Date(Date.now() + 8 * 3600_000).toISOString().slice(0, 16).replace("T", " ");
   const cat = catalog.length
     ? catalog
@@ -157,10 +158,15 @@ ${faq?.trim() || "(tiada — jika ditanya polisi/tempoh pos/COD yang tiada di si
 PESANAN PELANGGAN INI (ikut nombor telefon):
 ${orders.length ? orders.join("\n") : "(tiada pesanan dijumpai untuk nombor ini)"}
 
-Balas dalam JSON: {"reply": string, "handoff": boolean, "reason": string}`;
+${isComment ? `
+INI KOMEN AWAM pada post/iklan Facebook/Instagram (bukan chat). "reply" akan dihantar sebagai MESEJ PERIBADI (DM) kepada orang yang komen — tulis jawapan penuh di situ.
+skip=true (JANGAN balas) jika komen cuma tag kawan, emoji/sticker, "👍", ucapan tanpa soalan, spam/promosi orang lain, atau tak berkaitan produk. Jika ada minat/soalan (cth "berapa", "nak", "pm", "cod?", "sesuai untuk…") → skip=false dan jawab.
+Komen negatif/komplen/tuduhan penipuan → skip=false, handoff=true, reply = ayat sopan bahawa staff akan bantu melalui mesej.
+` : ""}
+Balas dalam JSON: {"reply": string, "handoff": boolean, "reason": string${isComment ? ', "skip": boolean' : ""}}`;
 }
 
-type GeminiOut = { reply: string; handoff: boolean; reason?: string };
+type GeminiOut = { reply: string; handoff: boolean; reason?: string; skip?: boolean };
 
 async function callGemini(cfg: BotConfig, system: string, history: { role: "user" | "model"; text: string }[]): Promise<GeminiOut> {
   const res = await fetch(
@@ -181,6 +187,7 @@ async function callGemini(cfg: BotConfig, system: string, history: { role: "user
               reply: { type: "STRING" },
               handoff: { type: "BOOLEAN" },
               reason: { type: "STRING" },
+              skip: { type: "BOOLEAN" },
             },
             required: ["reply", "handoff"],
           },
@@ -195,6 +202,7 @@ async function callGemini(cfg: BotConfig, system: string, history: { role: "user
   if (!res.ok || j.error) throw new Error(j.error?.message || `Gemini HTTP ${res.status}`);
   const txt = j.candidates?.[0]?.content?.parts?.map((p) => p.text || "").join("") || "";
   const out = JSON.parse(txt) as GeminiOut;
+  if (out.skip) return { reply: out.reply ?? "", handoff: false, reason: out.reason, skip: true };
   if (typeof out.reply !== "string" || !out.reply.trim()) throw new Error("Gemini balas kosong");
   return out;
 }
@@ -265,7 +273,7 @@ export async function runBotForContact(contactId: string, triggerMsgId: string):
     handoff = true;
     reason = "Pelanggan tekan Batalkan Pesanan (COD)";
     await db.waContact.update({ where: { id: contactId }, data: { tag: "cod_batal" } });
-  } else if (!["text", "button", "interactive"].includes(latestIn.type)) {
+  } else if (!["text", "button", "interactive", "comment"].includes(latestIn.type)) {
     // Gambar / audio / dokumen — biar manusia tengok
     reply = "Terima kasih! Kami dah terima kiriman anda, staff kami akan semak dan balas sebentar lagi ya.";
     handoff = true;
@@ -290,7 +298,16 @@ export async function runBotForContact(contactId: string, triggerMsgId: string):
       while (history.length && history[0].role !== "user") history.shift();
       while (history.length && history[history.length - 1].role !== "user") history.pop();
       if (!history.length) return;
-      const out = await callGemini(cfg, systemPrompt(catalog, cfg.faq || "", orders, contact.name), history);
+      const out = await callGemini(
+        cfg,
+        systemPrompt(catalog, cfg.faq || "", orders, contact.name, isCommentChannel(contact.channel)),
+        history,
+      );
+      if (out.skip) {
+        // Komen tag kawan / emoji / spam — tak perlu balas; tanda Selesai supaya inbox kemas
+        await db.waContact.update({ where: { id: contactId }, data: { archived: true, unread: 0 } });
+        return;
+      }
       reply = out.reply.trim();
       handoff = !!out.handoff;
       reason = out.reason || "";
@@ -314,6 +331,16 @@ export async function runBotForContact(contactId: string, triggerMsgId: string):
   const fresh = await db.waContact.findUnique({ where: { id: contactId }, select: { botPaused: true } });
   if (fresh?.botPaused) return;
 
+  if (isCommentChannel(contact.channel)) {
+    await replyOnComment(contact, latestIn.id, reply);
+    await db.waContact.update({
+      where: { id: contactId },
+      data: { lastMessageAt: new Date(), ...(handoff ? { needsHuman: true } : {}) },
+    });
+    if (handoff) await alertHuman(name, contact.waId, reason || "Bot serahkan (komen)", body);
+    return;
+  }
+
   const r = await sendToContact(contact, reply);
   const now = new Date();
   await db.waMessage.create({
@@ -334,4 +361,38 @@ export async function runBotForContact(contactId: string, triggerMsgId: string):
     data: { lastMessageAt: now, ...(handoff ? { needsHuman: true } : {}) },
   });
   if (handoff) await alertHuman(name, contact.waId, reason || "Bot serahkan", body);
+}
+
+// Komen: balas awam pendek (selamat compliance) + jawapan penuh melalui DM (private reply).
+// DM gagal (tiada permission / >7 hari) → jawapan penuh dibalas awam sahaja.
+async function replyOnComment(
+  contact: { id: string; channel: string; pageId: string | null; name: string | null },
+  inboundMsgId: string,
+  answer: string,
+) {
+  const inbound = await db.waMessage.findUnique({ where: { id: inboundMsgId }, select: { waMsgId: true } });
+  const commentId = inbound?.waMsgId;
+  if (!commentId) return;
+  const ch = contact.channel as "fb_comment" | "ig_comment";
+  const first = (contact.name || "").replace(/^@/, "").split(" ")[0];
+  const save = (body: string, r: { ok: boolean; msgId?: string; error?: string }, type: string) =>
+    db.waMessage.create({
+      data: {
+        contactId: contact.id,
+        waMsgId: r.msgId ?? null,
+        direction: "out",
+        type,
+        body,
+        bot: true,
+        status: r.ok ? "sent" : "failed",
+        error: r.ok ? null : r.error ?? "Gagal hantar",
+        timestamp: new Date(),
+      },
+    });
+
+  const dm = await privateReplyToComment(contact.pageId, commentId, answer);
+  await save(answer, dm, "dm");
+  const pub = dm.ok ? `Hi${first ? " " + first : ""}! Kami dah PM ya, semak inbox 😊` : answer;
+  const r = await replyToComment(ch, contact.pageId, commentId, pub);
+  await save(pub, r, "text");
 }

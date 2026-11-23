@@ -30,6 +30,47 @@ type Messaging = {
   postback?: { title?: string; payload?: string };
 };
 
+// Komen: FB page `feed` (item=comment, verb=add) · IG `comments`
+type Change = {
+  field?: string;
+  value?: {
+    // FB feed
+    item?: string;
+    verb?: string;
+    comment_id?: string;
+    post_id?: string;
+    parent_id?: string;
+    message?: string;
+    created_time?: number;
+    // IG comments
+    id?: string;
+    text?: string;
+    media?: { id?: string; media_product_type?: string };
+    from?: { id?: string; name?: string; username?: string };
+  };
+};
+
+async function ingestComment(
+  channel: "fb_comment" | "ig_comment",
+  ownerId: string, // page id (FB) / IG account id
+  c: { commentId: string; fromId: string; fromName: string | null; text: string; when: Date },
+): Promise<{ contactId: string; msgId: string } | null> {
+  if (await db.waMessage.findUnique({ where: { waMsgId: c.commentId }, select: { id: true } })) return null;
+  const key = (channel === "ig_comment" ? "igc:" : "fbc:") + c.fromId;
+  let contact = await db.waContact.findUnique({ where: { waId: key } });
+  if (!contact) {
+    contact = await db.waContact.create({ data: { waId: key, channel, pageId: ownerId, name: c.fromName } });
+  }
+  const saved = await db.waMessage.create({
+    data: { contactId: contact.id, waMsgId: c.commentId, direction: "in", type: "comment", body: c.text, timestamp: c.when },
+  });
+  await db.waContact.update({
+    where: { id: contact.id },
+    data: { lastMessageAt: c.when, lastInboundAt: c.when, unread: { increment: 1 }, archived: false, pageId: ownerId },
+  });
+  return { contactId: contact.id, msgId: saved.id };
+}
+
 export async function POST(req: Request) {
   const raw = await req.text();
   const meta = await getMetaCreds();
@@ -37,7 +78,7 @@ export async function POST(req: Request) {
   if (!meta?.appSecret || !verifyWhatsAppSignature(raw, req.headers.get("x-hub-signature-256"), meta.appSecret)) {
     return NextResponse.json({ ok: false }, { status: 401 });
   }
-  let payload: { object?: string; entry?: { id: string; messaging?: Messaging[] }[] };
+  let payload: { object?: string; entry?: { id: string; messaging?: Messaging[]; changes?: Change[] }[] };
   try {
     payload = JSON.parse(raw);
   } catch {
@@ -49,6 +90,39 @@ export async function POST(req: Request) {
 
   const botQueue = new Map<string, string>();
   let ingested = 0;
+
+  // ── Komen (changes) ──
+  for (const entry of payload.entry ?? []) {
+    for (const ch of entry.changes ?? []) {
+      const v = ch.value ?? {};
+      try {
+        if (channel === "messenger" && ch.field === "feed" && v.item === "comment" && v.verb === "add") {
+          // Abaikan komen page sendiri (balasan bot/staff) & komen kosong
+          if (!v.comment_id || !v.from?.id || v.from.id === entry.id || !v.message?.trim()) continue;
+          const r = await ingestComment("fb_comment", entry.id, {
+            commentId: v.comment_id,
+            fromId: v.from.id,
+            fromName: v.from.name ?? null,
+            text: v.message,
+            when: new Date((v.created_time ?? Date.now() / 1000) * 1000),
+          });
+          if (r) (botQueue.set(r.contactId, r.msgId), ingested++);
+        } else if (channel === "instagram" && ch.field === "comments") {
+          if (!v.id || !v.from?.id || v.from.id === entry.id || !v.text?.trim()) continue;
+          const r = await ingestComment("ig_comment", entry.id, {
+            commentId: v.id,
+            fromId: v.from.id,
+            fromName: v.from.username ? "@" + v.from.username : null,
+            text: v.text,
+            when: new Date(),
+          });
+          if (r) (botQueue.set(r.contactId, r.msgId), ingested++);
+        }
+      } catch (e) {
+        console.error("[meta-webhook] komen", e);
+      }
+    }
+  }
 
   for (const entry of payload.entry ?? []) {
     for (const ev of entry.messaging ?? []) {
