@@ -62,6 +62,24 @@ const ADSET_BLEED_TODAY = 50;   // adset CBO bakar >= ni hari ni + 0 jualan (& a
 const ADSET_BLEED_HIST_3D = 40; // mesti ada sejarah belanja 3hr >= ni (elak bunuh angle baru masa lag pagi)
 const CBO_MIN_ALIVE = 2;        // sentiasa simpan >= 2 angle hidup tiap campaign CBO
 
+// ── MOD HANIS (24 Nov 2026, owner: "try lah kalau tak ngam kita balik ke asal") ──
+// Suis: setting `engine_mode` = "hanis" (default) | "lama". Tukar: GET ?secret=..&mode=lama → terus balik engine asal.
+// Beza dgn engine lama:
+//  1) SCALE lembut: +15% (bukan +20%), tunggu 72 jam antara naik; untung jatuh lepas naik → PATAH BALIK.
+//  2) PAGI 06:xx: ROAS 3 hari adset ≤ breakeven → turun bajet 20% (tutup lubang bleed malam, 8 Nov).
+//  3) PETANG 14:00-20:59: CPA hari ni terlalu tinggi → bajet −25% HARI TU (pulih pagi esok jika 3-hari sihat),
+//     GANTI pause-iklan "mahal hari ni" (pernah bunuh winner IMG_0623 13 Nov).
+const HANIS_SCALE_STEP = 1.15;
+const HANIS_SCALE_WAIT_H = 72;
+const HANIS_ROLLBACK_DROP = 0.8;     // ROAS semalam < 80% ROAS sebelum naik → patah balik
+const BREAKEVEN_META_ROAS = 1.65;    // breakeven sebenar 1.65x (pixel kini 1x selepas PixelYourSite dimatikan)
+const HANIS_MORNING_CUT = 0.8;       // pagi: −20%
+const HANIS_AFTERNOON_CUT = 0.75;    // petang: −25%
+const HANIS_MIN_BUDGET = 50;         // jangan turun bawah RM50
+const HANIS_MORNING_HOUR = 6;
+const HANIS_AFTERNOON_FROM = 14;
+const HANIS_AFTERNOON_TO = 20;
+
 type AdRow = { id: string; name: string; status: string; adsetId: string; adsetName: string; campId: string; budget: number; spend3: number; pur3: number; roas3: number; spendToday: number; purToday: number };
 
 function purchasesOf(actions: { action_type: string; value: string }[] | undefined): number {
@@ -104,6 +122,15 @@ export async function GET(req: Request) {
 
   try {
     const actions: string[] = [];
+    // Suis mod engine (rollback segera tanpa deploy)
+    const modeParam = url.searchParams.get("mode");
+    if (modeParam === "hanis" || modeParam === "lama") await setSetting("engine_mode", modeParam);
+    const mode = ((await getSetting("engine_mode")) ?? "hanis") === "lama" ? "lama" : "hanis";
+    const nowMytH = new Date(Date.now() + 8 * 3600 * 1000);
+    // Ujian: ?hour=6 / ?hour=15 HANYA dlm dry-run (simulasi semakan pagi/petang tanpa ubah apa-apa)
+    const hourOverride = dryrun ? parseInt(url.searchParams.get("hour") ?? "", 10) : NaN;
+    const hourMytH = Number.isFinite(hourOverride) ? hourOverride : nowMytH.getUTCHours();
+    const todayMytH = nowMytH.toISOString().slice(0, 10);
     // ── 🇸🇬 SG SELF-HEAL — SG = engine untung #1 (ROAS 4-5x, AOV ~RM193). Selalu ter-pause pada hari jualan sebab ──
     // job tengah malam (resume-ads 00:01 / dayparting 00:05) MISS bila server tidur/restart waktu malam (takde traffic).
     // Auto-profit jalan tiap 2 jam → pastikan SG ON pada PAGI hari jualan (Isnin-Sabtu). PAGI je supaya tak lawan
@@ -220,7 +247,8 @@ export async function GET(req: Request) {
       const cpp3 = a.pur3 > 0 ? a.spend3 / a.pur3 : Infinity;
       const provenWinner = a.pur3 >= WINNER_PUR_3D && cpp3 <= cppLimit;
       const hourMytNow = new Date(Date.now() + 8 * 3600 * 1000).getUTCHours();
-      const expensiveToday = !provenWinner && hourMytNow >= EXPENSIVE_MIN_HOUR_MYT &&
+      // Mod Hanis: "mahal hari ni" diurus peringkat ADSET (bajet −25%), bukan pause iklan.
+      const expensiveToday = mode === "lama" && !provenWinner && hourMytNow >= EXPENSIVE_MIN_HOUR_MYT &&
         a.spendToday >= SPEND_BLEED_TODAY && a.purToday > 0 && cppToday > cppLimit;
       return { loser3d, deadToday, expensiveToday, bleeding: deadToday || expensiveToday, cppToday };
     };
@@ -332,8 +360,105 @@ export async function GET(req: Request) {
       actions.push(`⚠️ semak revive gagal: ${e instanceof Error ? e.message : String(e)}`);
     }
 
-    // ── B) SCALE adset winner (+20%, cap RM${CAP_TOTAL}) ──
+    // ── H) MOD HANIS — kawal bajet peringkat ADSET (ABO sahaja; CBO bajet di campaign → tak disentuh) ──
+    const touchedToday = new Set<string>(); // adset yg bajet dah diubah larian ni → jangan scale
+    type ScaleRec = { from: number; to: number; at: number; roasBefore: number };
+    type CutRec = { from: number; date: string };
+    const parseJson = <T,>(s: string | null): T | null => { try { return s ? (JSON.parse(s) as T) : null; } catch { return null; } };
+    const setBudget = async (id: string, rm: number) => (dryrun ? { ok: true } : gpost(id, { daily_budget: String(Math.round(rm) * 100) }));
+    if (mode === "hanis") {
+      const yRes = await gget(`${adAccountId}/adsets`, {
+        fields: "id,insights.date_preset(yesterday){spend,action_values}", limit: "200", effective_status: "['ACTIVE']",
+      });
+      const yRoas = new Map<string, { spend: number; roas: number }>();
+      for (const s of yRes.data || []) {
+        const ins = s.insights?.data?.[0];
+        const sp = ins ? parseFloat(ins.spend || "0") : 0;
+        yRoas.set(s.id, { spend: sp, roas: sp > 0 ? valueOf(ins?.action_values) / sp : 0 });
+      }
+      const agg = (id: string) => {
+        const xs = ads.filter((a) => a.adsetId === id);
+        const spend3 = xs.reduce((s, a) => s + a.spend3, 0);
+        const val3 = xs.reduce((s, a) => s + a.roas3 * a.spend3, 0);
+        const spendT = xs.reduce((s, a) => s + a.spendToday, 0);
+        const purT = xs.reduce((s, a) => s + a.purToday, 0);
+        return { spend3, roas3: spend3 > 0 ? val3 / spend3 : 0, spendT, purT };
+      };
+
+      const morningDone = (await getSetting("hanis_morning")) === todayMytH;
+      for (const [id, info] of adsetBudget) {
+        const budget = budgetById.get(id) ?? 0;
+        if (budget <= 0) continue; // CBO
+        const a = agg(id);
+        const short = info.name.slice(0, 28);
+        const isSg = /sg/i.test(info.name);
+
+        // ── PAGI (sekali sehari) ──
+        if (hourMytH === HANIS_MORNING_HOUR && !morningDone) {
+          // (a) pulihkan potongan petang semalam jika 3-hari sihat
+          const cut = parseJson<CutRec>(await getSetting(`hanis_cut_${id}`));
+          if (cut && cut.date !== todayMytH) {
+            if (a.roas3 > BREAKEVEN_META_ROAS && cut.from > budget) {
+              const r = await setBudget(id, cut.from);
+              if (r.ok) { budgetById.set(id, cut.from); totalBudget += cut.from - budget; touchedToday.add(id); }
+              actions.push(`${dryrun ? "[DRY] " : ""}↩️ PULIH "${short}" RM${budget}→RM${cut.from} (potongan petang semalam; 3hr ROAS ${a.roas3.toFixed(2)}x sihat)`);
+            }
+            if (!dryrun) await setSetting(`hanis_cut_${id}`, "");
+          }
+          // (b) patah balik scale yg tak menjadi
+          const rec = parseJson<ScaleRec>(await getSetting(`hanis_scale_${id}`));
+          const ageH = rec ? (Date.now() - rec.at) / 3600_000 : 0;
+          const y = yRoas.get(id);
+          if (rec && ageH >= 20 && ageH <= 96 && y && y.spend >= 100 && y.roas < rec.roasBefore * HANIS_ROLLBACK_DROP && (budgetById.get(id) ?? 0) > rec.from) {
+            const cur = budgetById.get(id) ?? budget;
+            const r = await setBudget(id, rec.from);
+            if (r.ok) { budgetById.set(id, rec.from); totalBudget += rec.from - cur; touchedToday.add(id); }
+            if (!dryrun) await setSetting(`hanis_scale_${id}`, "");
+            actions.push(`${dryrun ? "[DRY] " : ""}↩️ PATAH BALIK "${short}" RM${cur}→RM${rec.from} — lepas naik ROAS semalam ${y.roas.toFixed(2)}x < ${(rec.roasBefore * HANIS_ROLLBACK_DROP).toFixed(2)}x`);
+            continue;
+          }
+          // (c) ROAS 3 hari ≤ breakeven → turun 20%
+          const cur = budgetById.get(id) ?? budget;
+          if (!touchedToday.has(id) && a.spend3 >= SPEND_PAUSE_3D && a.roas3 <= BREAKEVEN_META_ROAS && cur > HANIS_MIN_BUDGET) {
+            const next = Math.max(HANIS_MIN_BUDGET, Math.round(cur * HANIS_MORNING_CUT));
+            const r = await setBudget(id, next);
+            if (r.ok) { budgetById.set(id, next); totalBudget += next - cur; touchedToday.add(id); }
+            actions.push(`${dryrun ? "[DRY] " : ""}🌅 PAGI turun "${short}" RM${cur}→RM${next} — 3hr ROAS ${a.roas3.toFixed(2)}x ≤ breakeven ${BREAKEVEN_META_ROAS}x`);
+          }
+        }
+
+        // ── PETANG: CPA hari ni terlalu tinggi → −25% hari tu (sekali sehari / adset) ──
+        if (hourMytH >= HANIS_AFTERNOON_FROM && hourMytH <= HANIS_AFTERNOON_TO && !touchedToday.has(id)) {
+          const cut = parseJson<CutRec>(await getSetting(`hanis_cut_${id}`));
+          if (cut?.date === todayMytH) continue; // dah potong hari ni
+          const limit = isSg ? CPP_BLEED_TODAY_SG : CPP_BLEED_TODAY;
+          const cpp = a.purT > 0 ? a.spendT / a.purT : Infinity;
+          if (a.spendT >= SPEND_BLEED_TODAY && cpp > limit) {
+            const cur = budgetById.get(id) ?? budget;
+            const next = Math.max(HANIS_MIN_BUDGET, Math.round(cur * HANIS_AFTERNOON_CUT));
+            if (next < cur) {
+              const r = await setBudget(id, next);
+              if (r.ok) {
+                budgetById.set(id, next); totalBudget += next - cur; touchedToday.add(id);
+                if (!dryrun) await setSetting(`hanis_cut_${id}`, JSON.stringify({ from: cur, date: todayMytH } satisfies CutRec));
+              }
+              actions.push(`${dryrun ? "[DRY] " : ""}✂️ PETANG −25% "${short}" RM${cur}→RM${next} — CPA hari ni ${cpp === Infinity ? "tiada jualan" : "RM" + cpp.toFixed(0)} (had RM${limit}), belanja RM${a.spendT.toFixed(0)}`);
+            }
+          }
+        }
+      }
+      if (hourMytH === HANIS_MORNING_HOUR && !morningDone && !dryrun) await setSetting("hanis_morning", todayMytH);
+    }
+
+    // ── B) SCALE adset winner (lama: +20% tiap larian · Hanis: +15% tunggu 72j) ──
     for (const [adsetId, info] of adsetBudget) {
+      if (touchedToday.has(adsetId)) continue;
+      if (mode === "hanis") {
+        const rec = parseJson<ScaleRec>(await getSetting(`hanis_scale_${adsetId}`));
+        if (rec && (Date.now() - rec.at) / 3600_000 < HANIS_SCALE_WAIT_H) continue; // tunggu 72 jam
+        const cut = parseJson<CutRec>(await getSetting(`hanis_cut_${adsetId}`));
+        if (cut?.date === todayMytH) continue; // kena potong hari ni → jangan naik
+      }
       const adsetAds = ads.filter((a) => a.adsetId === adsetId);
       const spend3 = adsetAds.reduce((s, a) => s + a.spend3, 0);
       const val3 = adsetAds.reduce((s, a) => s + a.roas3 * a.spend3, 0);
@@ -368,7 +493,7 @@ export async function GET(req: Request) {
           continue;
         }
       }
-      let next = Math.round(info.budget * SCALE_STEP);
+      let next = Math.round(info.budget * (mode === "hanis" ? HANIS_SCALE_STEP : SCALE_STEP));
       if (next > adsetCap) next = adsetCap; // jangan lepas cap adset (khususnya SG)
       const headroom = CAP_TOTAL - (totalBudget - info.budget);
       if (next > headroom) next = Math.floor(headroom);
@@ -378,6 +503,9 @@ export async function GET(req: Request) {
         if (!r.ok) { actions.push(`❌ scale gagal "${info.name.slice(0, 24)}": ${r.error}`); continue; }
       }
       if (isSg && !dryrun) await setSetting("sg_last_scale", todayMytStr);
+      if (mode === "hanis" && !dryrun) {
+        await setSetting(`hanis_scale_${adsetId}`, JSON.stringify({ from: info.budget, to: next, at: Date.now(), roasBefore: roas3 } satisfies ScaleRec));
+      }
       totalBudget += next - info.budget;
       actions.push(`${dryrun ? "[DRY] " : ""}🚀 SCALE "${info.name.slice(0, 30)}" RM${info.budget}→RM${next} (ROAS ${roas3.toFixed(1)}x)`);
     }
@@ -397,7 +525,8 @@ export async function GET(req: Request) {
 
     // ── C) REPORT Telegram ──
     const totSpendToday = [...todayMap.values()].reduce((s, x) => s + x.spend, 0);
-    const head = dryrun ? "🤖 AUTO-PROFIT (DRY-RUN — tiada tindakan sebenar)" : "🤖 AUTO-PROFIT";
+    const modeTag = mode === "hanis" ? " · Mod Hanis" : " · Mod lama";
+    const head = (dryrun ? "🤖 AUTO-PROFIT (DRY-RUN — tiada tindakan sebenar)" : "🤖 AUTO-PROFIT") + modeTag;
     const lines = [
       head,
       `Belanja hari ni: RM${totSpendToday.toFixed(0)} · budget harian: RM${totalBudget.toFixed(0)}/${CAP_TOTAL}`,
@@ -405,11 +534,13 @@ export async function GET(req: Request) {
       actions.length ? actions.join("\n") : "✅ Semua sihat — tiada pause/scale perlu.",
       ...(health.length ? ["", "— SEMAKAN STRUKTUR —", ...health] : []),
     ];
-    await sendTelegram(lines.join("\n"));
+    // Dry-run ujian boleh senyap (&notify=0) supaya owner tak dapat spam Telegram
+    if (!(dryrun && url.searchParams.get("notify") === "0")) await sendTelegram(lines.join("\n"));
 
     return NextResponse.json({
       ok: true,
       dryrun,
+      mode,
       caps: { total: CAP_TOTAL, sg: SG_ADSET_CAP, adset: ADSET_CAP, todaySpendMin: SCALE_TODAY_SPEND_MIN, pixelFactor: { my: 0.5, sg: 0.5 } },
       health,
       totalBudget,
