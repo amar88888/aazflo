@@ -40,8 +40,10 @@ const JOBS: Job[] = [
   { name: "sg-dayparting", due: (h, m) => h === 0 && m === 5, paths: ["sg-dayparting"] },
   // MY budget tukar start hari baru (clean, bukan jump tengah hari) — target & tarikh dalam endpoint
   { name: "my-scaleup", due: (h, m) => h === 0 && m === 6, paths: ["my-scaleup"] },
-  // Purge cache semua kedai 04:30 (cache baru siap sebelum subuh & ads bangun 06:00)
-  { name: "purge-cache", due: (h, m) => h === 4 && m === 30, paths: ["purge-cache"] },
+  // Purge cache semua kedai 04:55 (cache baru siap sebelum subuh & ads bangun 06:00).
+  // 24 Nov: dulu 04:30 → sync-woo 04:35 tarik ~1,200 order dari site cache sejuk → timeout 170s.
+  // Kini LEPAS sync (04:35) & repair (04:45).
+  { name: "purge-cache", due: (h, m) => h === 4 && m === 55, paths: ["purge-cache"] },
   // Repair harian 04:45 (waktu sunyi): kemas SQLite (WAL checkpoint, integrity, optimize)
   // + buang baris order berganda supaya dashboard stabil & tepat.
   { name: "repair-harian", due: (h, m) => h === 4 && m === 45, paths: ["maintenance", "dedupe-orders?apply=1"] },
