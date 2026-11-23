@@ -16,6 +16,7 @@ export type Conversation = {
   preview: string;
   lastDirection: string | null;
   windowOpen: boolean;
+  done: boolean; // ditanda "Selesai" (dibuka semula automatik bila pelanggan mesej lagi)
 };
 
 export type ThreadMessage = {
@@ -30,10 +31,10 @@ export type ThreadMessage = {
 
 // Senarai perbualan (terbaru dulu), dengan preview mesej terakhir.
 export async function listConversations(): Promise<Conversation[]> {
+  // Semua perbualan (termasuk Selesai) — client tapis ikut tab.
   const contacts = await db.waContact.findMany({
-    where: { archived: false },
     orderBy: { lastMessageAt: "desc" },
-    take: 200,
+    take: 300,
     include: { messages: { orderBy: { timestamp: "desc" }, take: 1 } },
   });
   const now = Date.now();
@@ -49,8 +50,15 @@ export async function listConversations(): Promise<Conversation[]> {
       preview: last?.body ?? "",
       lastDirection: last?.direction ?? null,
       windowOpen: !!c.lastInboundAt && now - c.lastInboundAt.getTime() < WINDOW_MS,
+      done: c.archived,
     };
   });
+}
+
+// Tanda perbualan Selesai / buka semula. (Webhook auto buka semula bila mesej baru masuk.)
+export async function setDone(contactId: string, done: boolean): Promise<void> {
+  await db.waContact.update({ where: { id: contactId }, data: { archived: done, ...(done ? { unread: 0 } : {}) } });
+  revalidatePath("/inbox");
 }
 
 // Buka satu perbualan — tanda sudah baca + pulang semua mesej (lama → baru).

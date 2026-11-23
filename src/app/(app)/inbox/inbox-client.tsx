@@ -1,8 +1,22 @@
 "use client";
 
 import { useEffect, useRef, useState, useTransition, useCallback } from "react";
-import { Send, Search, RefreshCw, Check, CheckCheck, AlertTriangle, MessageCircle } from "lucide-react";
-import { listConversations, getThread, sendReply, type Conversation, type ThreadMessage } from "./actions";
+import { Send, Search, RefreshCw, Check, CheckCheck, AlertTriangle, MessageCircle, CircleCheck, RotateCcw } from "lucide-react";
+import { listConversations, getThread, sendReply, setDone, type Conversation, type ThreadMessage } from "./actions";
+
+type Tab = "belum" | "dibalas" | "selesai" | "semua";
+const TABS: { key: Tab; label: string }[] = [
+  { key: "belum", label: "Belum balas" },
+  { key: "dibalas", label: "Dibalas" },
+  { key: "selesai", label: "Selesai" },
+  { key: "semua", label: "Semua" },
+];
+function inTab(c: Conversation, t: Tab) {
+  if (t === "semua") return true;
+  if (t === "selesai") return c.done;
+  if (c.done) return false;
+  return t === "belum" ? c.lastDirection !== "out" : c.lastDirection === "out";
+}
 
 function timeShort(iso: string | null) {
   if (!iso) return "";
@@ -30,6 +44,7 @@ export function InboxClient({ initial }: { initial: Conversation[] }) {
   const [windowOpen, setWindowOpen] = useState<boolean>(initial[0]?.windowOpen ?? false);
   const [draft, setDraft] = useState("");
   const [q, setQ] = useState("");
+  const [tab, setTab] = useState<Tab>("belum");
   const [err, setErr] = useState<string | null>(null);
   const [pending, start] = useTransition();
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -111,8 +126,21 @@ export function InboxClient({ initial }: { initial: Conversation[] }) {
     });
   }
 
+  function toggleDone() {
+    if (!sel) return;
+    const done = !sel.done;
+    setSel({ ...sel, done });
+    setConvos((p) => p.map((c) => (c.id === sel.id ? { ...c, done, unread: done ? 0 : c.unread } : c)));
+    start(async () => {
+      await setDone(sel.id, done);
+      refreshList();
+    });
+  }
+
   const filtered = convos.filter(
-    (c) => !q || (c.name ?? "").toLowerCase().includes(q.toLowerCase()) || c.waId.includes(q),
+    (c) =>
+      inTab(c, tab) &&
+      (!q || (c.name ?? "").toLowerCase().includes(q.toLowerCase()) || c.waId.includes(q)),
   );
   const totalUnread = convos.reduce((s, c) => s + c.unread, 0);
 
@@ -120,6 +148,23 @@ export function InboxClient({ initial }: { initial: Conversation[] }) {
     <div className="flex h-[calc(100vh-9rem)] overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
       {/* Senarai perbualan */}
       <div className={`flex w-full flex-col border-r border-slate-200 sm:w-80 ${selId ? "hidden sm:flex" : "flex"}`}>
+        <div className="flex border-b border-slate-100 text-xs">
+          {TABS.map((t) => {
+            const n = convos.filter((c) => inTab(c, t.key)).length;
+            return (
+              <button
+                key={t.key}
+                onClick={() => setTab(t.key)}
+                className={`flex-1 border-b-2 px-1 py-2.5 font-medium transition-colors ${
+                  tab === t.key ? "border-emerald-500 text-emerald-600" : "border-transparent text-slate-500 hover:text-slate-700"
+                }`}
+              >
+                {t.label}
+                <span className={`ml-1 rounded-full px-1.5 py-0.5 text-[10px] ${tab === t.key ? "bg-emerald-50" : "bg-slate-100"}`}>{n}</span>
+              </button>
+            );
+          })}
+        </div>
         <div className="border-b border-slate-100 p-3">
           <div className="relative">
             <Search size={15} className="absolute left-2.5 top-2.5 text-slate-400" />
@@ -189,8 +234,19 @@ export function InboxClient({ initial }: { initial: Conversation[] }) {
                 <p className="truncate text-sm font-semibold text-slate-800">{sel.name || `+${sel.waId}`}</p>
                 <p className="text-xs text-slate-400">+{sel.waId}</p>
               </div>
+              <button
+                onClick={toggleDone}
+                className={`ml-auto flex items-center gap-1 rounded-lg border px-2.5 py-1 text-[11px] font-medium transition-colors ${
+                  sel.done
+                    ? "border-slate-300 text-slate-600 hover:bg-slate-50"
+                    : "border-emerald-300 text-emerald-600 hover:bg-emerald-50"
+                }`}
+              >
+                {sel.done ? <RotateCcw size={12} /> : <CircleCheck size={12} />}
+                {sel.done ? "Buka semula" : "Selesai"}
+              </button>
               <span
-                className={`ml-auto rounded-full px-2 py-0.5 text-[11px] font-medium ${
+                className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${
                   windowOpen ? "bg-emerald-50 text-emerald-600" : "bg-amber-50 text-amber-600"
                 }`}
               >
