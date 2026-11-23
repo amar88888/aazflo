@@ -9,6 +9,8 @@ import { TelegramSettings } from "./telegram-settings";
 import { getHiggsfieldCreds } from "@/lib/integrations/higgsfield";
 import { getMetaCreds } from "@/lib/integrations/meta-ads";
 import { MetaSettings } from "./meta-settings";
+import { WhatsAppSettings } from "./whatsapp-settings";
+import { getWhatsAppConfig } from "@/lib/whatsapp";
 import { connectTikTokAction, connectShopeeAction, saveFeesAction, saveHiggsfieldAction } from "./actions";
 
 export const dynamic = "force-dynamic";
@@ -24,6 +26,8 @@ export default async function SettingsPage() {
   const fees = await getPlatformFees();
   const higgsfieldReady = !!(await getHiggsfieldCreds());
   const metaCreds = await getMetaCreds();
+  const wa = await getWhatsAppConfig();
+  const waBase = (process.env.NEXTAUTH_URL || "https://aazflo.com").replace(/\/$/, "");
   const allStores = await getWooStores();
   const extraStores = allStores
     .filter((s) => s.key !== "maxlim")
@@ -191,6 +195,26 @@ export default async function SettingsPage() {
             Report auto dihantar setiap hari <b>sebelum 11:59 malam</b>. Untuk jadual: set cron di VPS (11:30 malam) →{" "}
             <code className="rounded bg-slate-100 px-1">30 23 * * * curl -s &quot;https://app.aazflo.com/api/cron/daily-report?secret=CRON_SECRET&quot;</code>
           </p>
+        </Card>
+
+        <Card>
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="text-sm font-semibold text-slate-700">WhatsApp — Inbox (Cloud API rasmi)</h2>
+            <Badge color={wa ? "green" : "orange"}>{wa ? "Connected" : "Belum setup"}</Badge>
+          </div>
+          <p className="mb-3 text-sm text-slate-600">
+            Inbox untuk balas semua reply blast WhatsApp di satu tempat. Perlu <b>Access Token</b> (permission{" "}
+            <code className="rounded bg-slate-100 px-1 text-xs">whatsapp_business_messaging</code>) &{" "}
+            <b>Phone Number ID</b> dari Meta App → WhatsApp. Buka menu <b>Inbox</b> selepas connect.
+          </p>
+          <WhatsAppSettings
+            configured={!!wa?.accessToken}
+            phoneNumberIdSet={!!wa?.phoneNumberId}
+            appSecretSet={!!wa?.appSecret}
+            webhookUrl={`${waBase}/api/whatsapp/webhook`}
+            verifyToken={wa?.verifyToken ?? null}
+            displayNumber={wa?.displayNumber}
+          />
         </Card>
 
         <Card>

@@ -41,6 +41,102 @@ export async function sendTestReportAction() {
   return sendTelegram(report);
 }
 
+// ── WhatsApp Cloud API (Inbox) ──
+export async function saveWhatsAppAction(formData: FormData) {
+  const { loadCredentials, saveCredentials } = await import("@/lib/credentials");
+  const { randomBytes } = await import("crypto");
+  type WA = import("@/lib/whatsapp").WhatsAppCreds;
+  const existing = await loadCredentials<WA>("whatsapp");
+
+  const accessToken = String(formData.get("accessToken") ?? "").trim();
+  const phoneNumberId = String(formData.get("phoneNumberId") ?? "").trim().replace(/[^0-9]/g, "");
+  const wabaId = String(formData.get("wabaId") ?? "").trim().replace(/[^0-9]/g, "");
+  const appSecret = String(formData.get("appSecret") ?? "").trim();
+
+  const wa = await import("@/lib/whatsapp");
+  const { getMetaCreds } = await import("@/lib/integrations/meta-ads");
+  const meta = await getMetaCreds();
+
+  const creds: WA = {
+    accessToken: accessToken || existing?.accessToken || "",
+    phoneNumberId: phoneNumberId || existing?.phoneNumberId || "",
+    wabaId: wabaId || existing?.wabaId || undefined,
+    appSecret: appSecret || existing?.appSecret || meta?.appSecret || undefined,
+    // Jana verify token sekali — kekal selepas tu
+    verifyToken: existing?.verifyToken || "aaz_" + randomBytes(12).toString("hex"),
+    displayNumber: existing?.displayNumber,
+  };
+  if (!creds.accessToken) return { ok: false, message: "Paste Access Token dulu." };
+
+  const notes: string[] = [];
+  const appId = meta?.appId;
+  const appToken = appId && meta?.appSecret ? `${appId}|${meta.appSecret}` : undefined;
+
+  // 1) Auto-cari WABA + Phone Number ID kalau tak diisi
+  const found = await wa.discoverWhatsApp(creds.accessToken, appToken);
+  if (!found.ok && !creds.phoneNumberId) {
+    return { ok: false, message: found.error ?? "Tak jumpa nombor WhatsApp." };
+  }
+  if (found.ok) {
+    const pick = found.phones.find((p) => p.id === creds.phoneNumberId) ?? found.phones[0];
+    creds.phoneNumberId = pick.id;
+    creds.wabaId = pick.wabaId;
+    creds.displayNumber = pick.display_phone_number;
+    notes.push(`Nombor: ${pick.verified_name ?? ""} ${pick.display_phone_number ?? ""}`.trim());
+    if (found.phones.length > 1) notes.push(`(${found.phones.length} nombor dijumpai — guna yang pertama; isi Phone Number ID untuk tukar)`);
+  }
+
+  // 2) Simpan DULU (Meta akan GET webhook untuk sahkan verify token)
+  await saveCredentials("whatsapp", creds);
+
+  // 3) Langgan app ke WABA (supaya mesej masuk dihantar ke webhook)
+  if (creds.wabaId) {
+    const s = await wa.subscribeAppToWaba(creds.wabaId, creds.accessToken);
+    notes.push(s.ok ? "✓ App dilanggan ke akaun WhatsApp" : `✗ Langgan WABA: ${s.error}`);
+  }
+
+  // 4) Daftar callback webhook (kalau token dari app Aazflo yang sama)
+  const base = (process.env.NEXTAUTH_URL || "https://aazflo.com").replace(/\/$/, "");
+  if (appId && meta?.appSecret && (!found.tokenAppId || found.tokenAppId === appId)) {
+    const r = await wa.registerAppWebhook(appId, meta.appSecret, `${base}/api/whatsapp/webhook`, creds.verifyToken!);
+    notes.push(r.ok ? "✓ Webhook didaftar automatik" : `✗ Webhook: ${r.error} — set manual guna URL & token di bawah`);
+  } else {
+    notes.push("Webhook: set manual di Meta App (URL & Verify Token di bawah)");
+  }
+
+  revalidatePath("/settings");
+  revalidatePath("/inbox");
+  return { ok: true, message: notes.join(" · ") };
+}
+
+export async function testWhatsAppAction() {
+  const { getWhatsAppConfig, saveCredentials } = {
+    getWhatsAppConfig: (await import("@/lib/whatsapp")).getWhatsAppConfig,
+    saveCredentials: (await import("@/lib/credentials")).saveCredentials,
+  };
+  const cfg = await getWhatsAppConfig();
+  if (!cfg) return { ok: false, message: "Belum setup — isi token & Phone Number ID dulu." };
+  try {
+    const res = await fetch(
+      `https://graph.facebook.com/v22.0/${cfg.phoneNumberId}?fields=display_phone_number,verified_name,quality_rating&access_token=${encodeURIComponent(cfg.accessToken)}`,
+    );
+    const j = (await res.json()) as {
+      display_phone_number?: string;
+      verified_name?: string;
+      quality_rating?: string;
+      error?: { message?: string };
+    };
+    if (j.error) return { ok: false, message: j.error.message ?? "Token/Phone ID tak sah." };
+    await saveCredentials("whatsapp", { ...cfg, displayNumber: j.display_phone_number });
+    return {
+      ok: true,
+      message: `✓ Sambung OK — ${j.verified_name ?? ""} (${j.display_phone_number ?? ""}) · kualiti ${j.quality_rating ?? "-"}`,
+    };
+  } catch (e) {
+    return { ok: false, message: e instanceof Error ? e.message : "Ralat rangkaian." };
+  }
+}
+
 // ── Higgsfield (Content AI) — simpan API key encrypted dalam DB ──
 export async function saveHiggsfieldAction(formData: FormData) {
   const credentials = String(formData.get("credentials") ?? "").trim();

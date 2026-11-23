@@ -15,6 +15,7 @@ import {
   Megaphone,
   Settings,
   Banknote,
+  MessageCircle,
   LogOut,
   X,
 } from "lucide-react";
@@ -26,6 +27,7 @@ const NAV = [
   { href: "/pnl", label: "Profit & Loss", icon: Calculator, staff: false },
   { href: "/cashflow", label: "Cashflow COD", icon: Banknote, staff: false },
   { href: "/ads", label: "Meta Ads", icon: Megaphone, staff: false },
+  { href: "/inbox", label: "Inbox WhatsApp", icon: MessageCircle, staff: false },
   // — Operasi —
   { href: "/orders", label: "Orders & AWB", icon: Package, staff: true },
   { href: "/returns", label: "Pulangan & Batal", icon: RotateCcw, staff: true },

@@ -187,3 +187,41 @@ model CashTxn {
   @@index([date])
   @@index([type])
 }
+
+// ── Inbox WhatsApp (Cloud API rasmi) ──
+// Satu kontak = satu perbualan. Mesej masuk via webhook, balas via Graph API
+// (free-form sah dalam tetingkap 24 jam selepas mesej masuk terakhir).
+
+model WaContact {
+  id            String      @id @default(cuid())
+  waId          String      @unique // nombor format antarabangsa tanpa '+' (cth 60123456789)
+  name          String? // nama profil WhatsApp (dari webhook)
+  lastMessageAt DateTime? // mesej terakhir (arah mana pun) — untuk susun senarai
+  lastInboundAt DateTime? // mesej MASUK terakhir — kira tetingkap 24 jam
+  unread        Int         @default(0)
+  archived      Boolean     @default(false)
+  tag           String? // pemasaran | sokongan | ... (opsyenal)
+  messages      WaMessage[]
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  @@index([lastMessageAt])
+  @@index([archived])
+}
+
+model WaMessage {
+  id        String    @id @default(cuid())
+  contactId String
+  contact   WaContact @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  waMsgId   String?   @unique // id mesej WhatsApp (wamid…) — elak duplikat
+  direction String // in | out
+  type      String    @default("text") // text | image | video | audio | document | sticker | button | interactive
+  body      String? // teks / caption
+  mediaId   String? // id media WA (kalau ada) — boleh tarik kemudian
+  status    String? // untuk mesej KELUAR: sent | delivered | read | failed
+  error     String? // sebab gagal (kalau ada)
+  timestamp DateTime // masa mesej
+  createdAt DateTime  @default(now())
+
+  @@index([contactId, timestamp])
+}
