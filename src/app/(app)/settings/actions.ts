@@ -138,6 +138,59 @@ export async function testWhatsAppAction() {
   }
 }
 
+// ── Bot AI Inbox (Gemini) ──
+export async function saveBotAction(formData: FormData) {
+  const { loadCredentials, saveCredentials } = await import("@/lib/credentials");
+  type BC = import("@/lib/inbox-bot").BotConfig;
+  const existing = await loadCredentials<BC>("inbox_bot");
+  const geminiKey = String(formData.get("geminiKey") ?? "").trim();
+  const cfg: BC = {
+    enabled: formData.get("enabled") === "on",
+    geminiKey: geminiKey || existing?.geminiKey,
+    model: String(formData.get("model") ?? "").trim() || existing?.model || "gemini-flash-latest",
+    faq: String(formData.get("faq") ?? "").slice(0, 6000),
+  };
+  if (cfg.enabled && !cfg.geminiKey && !process.env.GEMINI_API_KEY) {
+    return { ok: false, message: "Isi Gemini API key dulu sebelum hidupkan bot." };
+  }
+  await saveCredentials("inbox_bot", cfg);
+  revalidatePath("/settings");
+  return { ok: true, message: cfg.enabled ? "Bot AI disimpan & AKTIF." : "Disimpan (bot OFF)." };
+}
+
+export async function testBotAction(question: string) {
+  const { previewBotReply } = await import("@/lib/inbox-bot");
+  const q = question.trim().slice(0, 500);
+  if (!q) return { ok: false, message: "Taip soalan contoh dulu." };
+  const r = await previewBotReply(q);
+  if (r.error) return { ok: false, message: r.error };
+  return { ok: true, message: `${r.handoff ? "🙋 [SERAH KE STAFF] " : "🤖 "}${r.reply}${r.reason ? `  (sebab: ${r.reason})` : ""}` };
+}
+
+// ── Messenger + IG (Inbox) — sambung semua Page dari token Meta yang dah ada ──
+export async function connectMetaPagesAction() {
+  const { getMetaCreds } = await import("@/lib/integrations/meta-ads");
+  const mi = await import("@/lib/meta-inbox");
+  const { randomBytes } = await import("crypto");
+  const meta = await getMetaCreds();
+  if (!meta?.accessToken) return { ok: false, message: "Token Meta belum ada (Settings → Meta Ads)." };
+  const r = await mi.connectPagesFromUserToken(meta.accessToken);
+  if (!r.ok) return { ok: false, message: `Gagal: ${r.notes.join(" · ")}` };
+  const prev = await mi.getMetaInbox();
+  const verifyToken = prev.verifyToken || "aazm_" + randomBytes(12).toString("hex");
+  await mi.saveMetaInbox({ pages: r.pages, verifyToken });
+  const notes = [...r.notes];
+  if (meta.appId && meta.appSecret) {
+    const base = (process.env.NEXTAUTH_URL || "https://aazflo.com").replace(/\/$/, "");
+    notes.push(...(await mi.registerMetaWebhooks(meta.appId, meta.appSecret, `${base}/api/meta/webhook`, verifyToken)));
+  } else {
+    notes.push("App Secret Meta tiada — webhook perlu didaftar manual");
+  }
+  revalidatePath("/settings");
+  revalidatePath("/inbox");
+  return { ok: true, message: notes.join(" · ") };
+}
+
 // ── Higgsfield (Content AI) — simpan API key encrypted dalam DB ──
 export async function saveHiggsfieldAction(formData: FormData) {
   const credentials = String(formData.get("credentials") ?? "").trim();

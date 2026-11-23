@@ -1,7 +1,8 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { sendWhatsAppText, toWaId } from "@/lib/whatsapp";
+import { toWaId } from "@/lib/whatsapp";
+import { sendToContact } from "@/lib/inbox-send";
 import { revalidatePath } from "next/cache";
 
 const WINDOW_MS = 24 * 60 * 60 * 1000;
@@ -9,14 +10,18 @@ const WINDOW_MS = 24 * 60 * 60 * 1000;
 export type Conversation = {
   id: string;
   waId: string;
+  channel: string; // whatsapp | messenger | instagram
   name: string | null;
   unread: number;
   lastMessageAt: string | null;
   lastInboundAt: string | null;
   preview: string;
   lastDirection: string | null;
+  lastBot: boolean;
   windowOpen: boolean;
   done: boolean; // ditanda "Selesai" (dibuka semula automatik bila pelanggan mesej lagi)
+  needsHuman: boolean; // bot serahkan — staff perlu balas
+  botPaused: boolean;
 };
 
 export type ThreadMessage = {
@@ -26,12 +31,13 @@ export type ThreadMessage = {
   type: string;
   status: string | null;
   error: string | null;
+  bot: boolean;
   timestamp: string;
 };
 
 // Senarai perbualan (terbaru dulu), dengan preview mesej terakhir.
 export async function listConversations(): Promise<Conversation[]> {
-  // Semua perbualan (termasuk Selesai) — client tapis ikut tab.
+  // Semua perbualan (termasuk Selesai) — client tapis ikut tab & saluran.
   const contacts = await db.waContact.findMany({
     orderBy: { lastMessageAt: "desc" },
     take: 300,
@@ -43,27 +49,52 @@ export async function listConversations(): Promise<Conversation[]> {
     return {
       id: c.id,
       waId: c.waId,
+      channel: c.channel,
       name: c.name,
       unread: c.unread,
       lastMessageAt: c.lastMessageAt?.toISOString() ?? null,
       lastInboundAt: c.lastInboundAt?.toISOString() ?? null,
       preview: last?.body ?? "",
       lastDirection: last?.direction ?? null,
+      lastBot: !!last?.bot,
       windowOpen: !!c.lastInboundAt && now - c.lastInboundAt.getTime() < WINDOW_MS,
       done: c.archived,
+      needsHuman: c.needsHuman,
+      botPaused: c.botPaused,
     };
   });
 }
 
 // Tanda perbualan Selesai / buka semula. (Webhook auto buka semula bila mesej baru masuk.)
 export async function setDone(contactId: string, done: boolean): Promise<void> {
-  await db.waContact.update({ where: { id: contactId }, data: { archived: done, ...(done ? { unread: 0 } : {}) } });
+  await db.waContact.update({
+    where: { id: contactId },
+    data: { archived: done, ...(done ? { unread: 0, needsHuman: false } : {}) },
+  });
+  revalidatePath("/inbox");
+}
+
+// Hidup/matikan bot untuk satu kontak. Hidupkan semula = kosongkan "perlu manusia".
+export async function setBot(contactId: string, on: boolean): Promise<void> {
+  await db.waContact.update({
+    where: { id: contactId },
+    data: { botPaused: !on, ...(on ? { needsHuman: false } : {}) },
+  });
   revalidatePath("/inbox");
 }
 
 // Buka satu perbualan — tanda sudah baca + pulang semua mesej (lama → baru).
 export async function getThread(contactId: string): Promise<{
-  contact: { id: string; waId: string; name: string | null; windowOpen: boolean; lastInboundAt: string | null } | null;
+  contact: {
+    id: string;
+    waId: string;
+    channel: string;
+    name: string | null;
+    windowOpen: boolean;
+    lastInboundAt: string | null;
+    botPaused: boolean;
+    needsHuman: boolean;
+  } | null;
   messages: ThreadMessage[];
 }> {
   const contact = await db.waContact.findUnique({ where: { id: contactId } });
@@ -77,9 +108,12 @@ export async function getThread(contactId: string): Promise<{
     contact: {
       id: contact.id,
       waId: contact.waId,
+      channel: contact.channel,
       name: contact.name,
       lastInboundAt: contact.lastInboundAt?.toISOString() ?? null,
       windowOpen: !!contact.lastInboundAt && now - contact.lastInboundAt.getTime() < WINDOW_MS,
+      botPaused: contact.botPaused,
+      needsHuman: contact.needsHuman,
     },
     messages: msgs.map((m) => ({
       id: m.id,
@@ -88,12 +122,14 @@ export async function getThread(contactId: string): Promise<{
       type: m.type,
       status: m.status,
       error: m.error,
+      bot: m.bot,
       timestamp: m.timestamp.toISOString(),
     })),
   };
 }
 
-// Balas pelanggan (teks free-form). Sah hanya dalam tetingkap 24 jam.
+// Staff balas pelanggan (teks free-form, dalam tetingkap 24 jam).
+// Manusia dah ambil alih → bot berhenti untuk kontak ni & "perlu manusia" dikosongkan.
 export async function sendReply(
   contactId: string,
   text: string,
@@ -103,17 +139,17 @@ export async function sendReply(
   const contact = await db.waContact.findUnique({ where: { id: contactId } });
   if (!contact) return { ok: false, error: "Kontak tak dijumpai." };
 
-  const windowOpen = !!contact.lastInboundAt && Date.now() - contact.lastInboundAt.getTime() < 24 * 60 * 60 * 1000;
+  const windowOpen = !!contact.lastInboundAt && Date.now() - contact.lastInboundAt.getTime() < WINDOW_MS;
   if (!windowOpen) {
-    return { ok: false, error: "Tetingkap 24 jam dah tamat — pelanggan kena mesej dulu, atau guna template berbayar." };
+    return { ok: false, error: "Tetingkap 24 jam dah tamat — pelanggan kena mesej dulu." };
   }
 
-  const r = await sendWhatsAppText(contact.waId, body);
+  const r = await sendToContact(contact, body);
   const now = new Date();
   await db.waMessage.create({
     data: {
       contactId,
-      waMsgId: r.waMsgId ?? null,
+      waMsgId: r.msgId ?? null,
       direction: "out",
       type: "text",
       body,
@@ -122,19 +158,22 @@ export async function sendReply(
       timestamp: now,
     },
   });
-  if (r.ok) await db.waContact.update({ where: { id: contactId }, data: { lastMessageAt: now } });
+  if (r.ok) {
+    await db.waContact.update({
+      where: { id: contactId },
+      data: { lastMessageAt: now, botPaused: true, needsHuman: false },
+    });
+  }
   revalidatePath("/inbox");
   return r.ok ? { ok: true } : { ok: false, error: r.error };
 }
 
-// Mula perbualan baru dengan satu nombor (mesti dalam tetingkap 24 jam — biasanya
-// untuk balas orang yang baru WhatsApp kita tapi belum wujud sebagai kontak).
 export async function archiveConversation(contactId: string): Promise<void> {
   await db.waContact.update({ where: { id: contactId }, data: { archived: true } });
   revalidatePath("/inbox");
 }
 
-// Untuk butang "Mula chat" — normalkan nombor jadi waId (bantuan sahaja).
+// Bantuan: normalkan nombor jadi waId.
 export async function normalizeNumber(num: string): Promise<string> {
   return toWaId(num);
 }

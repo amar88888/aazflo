@@ -194,7 +194,11 @@ model CashTxn {
 
 model WaContact {
   id            String      @id @default(cuid())
-  waId          String      @unique // nombor format antarabangsa tanpa '+' (cth 60123456789)
+  waId          String      @unique // WA: nombor 60123…; Messenger: "fb:<PSID>"; IG: "ig:<IGSID>"
+  channel       String      @default("whatsapp") // whatsapp | messenger | instagram
+  pageId        String? // Messenger/IG: page / IG account yang terima mesej (untuk balas)
+  botPaused     Boolean     @default(false) // manusia ambil alih — bot berhenti untuk kontak ni
+  needsHuman    Boolean     @default(false) // bot serahkan (komplen/refund/tak pasti)
   name          String? // nama profil WhatsApp (dari webhook)
   lastMessageAt DateTime? // mesej terakhir (arah mana pun) — untuk susun senarai
   lastInboundAt DateTime? // mesej MASUK terakhir — kira tetingkap 24 jam
@@ -218,6 +222,7 @@ model WaMessage {
   type      String    @default("text") // text | image | video | audio | document | sticker | button | interactive
   body      String? // teks / caption
   mediaId   String? // id media WA (kalau ada) — boleh tarik kemudian
+  bot       Boolean   @default(false) // mesej keluar dihantar oleh bot AI
   status    String? // untuk mesej KELUAR: sent | delivered | read | failed
   error     String? // sebab gagal (kalau ada)
   timestamp DateTime // masa mesej

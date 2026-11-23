@@ -1,13 +1,14 @@
 import Link from "next/link";
 import { PageHeader, Card } from "@/components/ui";
 import { isWhatsAppReady } from "@/lib/whatsapp";
+import { getMetaInbox } from "@/lib/meta-inbox";
 import { listConversations } from "./actions";
 import { InboxClient } from "./inbox-client";
 
 export const dynamic = "force-dynamic";
 
 export default async function InboxPage() {
-  const ready = await isWhatsAppReady();
+  const ready = (await isWhatsAppReady()) || (await getMetaInbox()).pages.length > 0;
 
   if (!ready) {
     return (
@@ -35,7 +36,7 @@ export default async function InboxPage() {
   const initial = await listConversations();
   return (
     <div>
-      <PageHeader title="Inbox WhatsApp" subtitle="Semua reply blast — balas terus (tetingkap 24 jam)" />
+      <PageHeader title="Inbox" subtitle="WhatsApp, Messenger & Instagram dalam satu tempat — bot AI jawab, staff ambil alih bila perlu" />
       <InboxClient initial={initial} />
     </div>
   );

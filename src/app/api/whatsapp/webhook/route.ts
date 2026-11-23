@@ -1,6 +1,7 @@
-import { NextResponse } from "next/server";
+import { NextResponse, after } from "next/server";
 import { db } from "@/lib/db";
 import { getWhatsAppConfig, verifyWhatsAppSignature } from "@/lib/whatsapp";
+import { runBotForContact } from "@/lib/inbox-bot";
 
 export const dynamic = "force-dynamic";
 
@@ -102,6 +103,7 @@ export async function POST(req: Request) {
 
   let ingested = 0;
   let statusUpdated = 0;
+  const botQueue = new Map<string, string>(); // contactId → id mesej masuk terkini
 
   for (const entry of payload.entry ?? []) {
     for (const change of entry.changes ?? []) {
@@ -125,9 +127,10 @@ export async function POST(req: Request) {
           // waMsgId unique → elak simpan dua kali bila Meta retry webhook
           const exists = m.id ? await db.waMessage.findUnique({ where: { waMsgId: m.id }, select: { id: true } }) : null;
           if (!exists) {
-            await db.waMessage.create({
+            const saved = await db.waMessage.create({
               data: { contactId: contact.id, waMsgId: m.id, direction: "in", type: m.type, body, mediaId, timestamp: when },
             });
+            botQueue.set(contact.id, saved.id);
             ingested++;
           }
         } catch (e) {
@@ -149,6 +152,11 @@ export async function POST(req: Request) {
         }
       }
     }
+  }
+
+  // Bot AI jalan SELEPAS respons dihantar (Meta mahu 200 cepat)
+  for (const [contactId, msgId] of botQueue) {
+    after(() => runBotForContact(contactId, msgId).catch((e) => console.error("[inbox-bot]", e)));
   }
 
   return NextResponse.json({ ok: true, ingested, statusUpdated });

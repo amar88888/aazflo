@@ -11,6 +11,10 @@ import { getMetaCreds } from "@/lib/integrations/meta-ads";
 import { MetaSettings } from "./meta-settings";
 import { WhatsAppSettings } from "./whatsapp-settings";
 import { getWhatsAppConfig } from "@/lib/whatsapp";
+import { BotSettings } from "./bot-settings";
+import { MetaInboxSettings } from "./meta-inbox-settings";
+import { getBotConfig } from "@/lib/inbox-bot";
+import { getMetaInbox } from "@/lib/meta-inbox";
 import { connectTikTokAction, connectShopeeAction, saveFeesAction, saveHiggsfieldAction } from "./actions";
 
 export const dynamic = "force-dynamic";
@@ -28,6 +32,8 @@ export default async function SettingsPage() {
   const metaCreds = await getMetaCreds();
   const wa = await getWhatsAppConfig();
   const waBase = (process.env.NEXTAUTH_URL || "https://aazflo.com").replace(/\/$/, "");
+  const bot = await getBotConfig();
+  const metaInbox = await getMetaInbox();
   const allStores = await getWooStores();
   const extraStores = allStores
     .filter((s) => s.key !== "maxlim")
@@ -214,6 +220,32 @@ export default async function SettingsPage() {
             webhookUrl={`${waBase}/api/whatsapp/webhook`}
             verifyToken={wa?.verifyToken ?? null}
             displayNumber={wa?.displayNumber}
+          />
+        </Card>
+
+        <Card>
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="text-sm font-semibold text-slate-700">Bot AI — Auto-reply Inbox (Gemini)</h2>
+            <Badge color={bot.enabled ? "green" : "orange"}>{bot.enabled ? "Aktif" : "OFF"}</Badge>
+          </div>
+          <p className="mb-3 text-sm text-slate-600">
+            Bot jawab soalan pelanggan guna harga sebenar dari website + maklumat di bawah. Komplen, refund, soalan
+            kesihatan atau yang tak pasti → bot serahkan kepada staff (tanda <b>Perlu manusia</b> + Telegram). Bila staff
+            balas dari inbox, bot berhenti untuk pelanggan tersebut.
+          </p>
+          <BotSettings enabled={bot.enabled} hasKey={!!bot.geminiKey} model={bot.model || "gemini-flash-latest"} faq={bot.faq || ""} />
+        </Card>
+
+        <Card>
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="text-sm font-semibold text-slate-700">Messenger + Instagram DM — Inbox</h2>
+            <Badge color={metaInbox.pages.length ? "green" : "orange"}>
+              {metaInbox.pages.length ? `${metaInbox.pages.length} page` : "Belum sambung"}
+            </Badge>
+          </div>
+          <MetaInboxSettings
+            pages={metaInbox.pages.map((p) => ({ pageId: p.pageId, name: p.name, igUsername: p.igUsername }))}
+            webhookUrl={`${waBase}/api/meta/webhook`}
           />
         </Card>
 
