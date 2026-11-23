@@ -75,11 +75,19 @@ export async function POST(req: Request) {
   // Dua sumber sah:
   //  1) Relay dari plugin nottinite.com (?k=<verifyToken>) — plugin yang terima
   //     webhook Meta (app KASIFLY), kita cuma salin. Jangan ubah webhook app tu.
-  //  2) Terus dari Meta — sahkan X-Hub-Signature-256 (kalau App Secret diset)
+  //  2) Terus dari Meta — sahkan X-Hub-Signature-256 guna App Secret WhatsApp
+  //     (kalau diisi) ATAU secret app Aazflo (mod terus: webhook didaftar pada app
+  //     Aazflo, jadi Meta tandatangan guna secret Aazflo). 24 Nov: field App Secret
+  //     kosong → semua POST Meta kena 401.
   const k = new URL(req.url).searchParams.get("k");
   const relayOk = !!k && !!cfg?.verifyToken && k === cfg.verifyToken;
-  const sigOk =
-    !!cfg?.appSecret && verifyWhatsAppSignature(raw, req.headers.get("x-hub-signature-256"), cfg.appSecret);
+  const sig = req.headers.get("x-hub-signature-256");
+  let sigOk = !!cfg?.appSecret && verifyWhatsAppSignature(raw, sig, cfg.appSecret);
+  if (!sigOk && sig) {
+    const { getMetaCreds } = await import("@/lib/integrations/meta-ads");
+    const metaSecret = (await getMetaCreds())?.appSecret;
+    sigOk = !!metaSecret && verifyWhatsAppSignature(raw, sig, metaSecret);
+  }
   if (!relayOk && !sigOk) {
     return NextResponse.json({ ok: false, message: "unauthorized" }, { status: 401 });
   }
