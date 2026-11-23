@@ -6,3 +6,4 @@
 20260930123438_ninja_tracking_events
 20260930132441_multi_store
 20261023130000_order_payment
+20261124010000_inbox
