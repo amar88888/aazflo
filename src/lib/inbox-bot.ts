@@ -3,7 +3,7 @@ import { loadCredentials } from "@/lib/credentials";
 import { getWooStores, type WooStore } from "@/lib/integrations/woocommerce";
 import { sendTelegram } from "@/lib/telegram";
 import { sendToContact, isCommentChannel } from "@/lib/inbox-send";
-import { replyToComment, privateReplyToComment } from "@/lib/meta-inbox";
+import { replyToComment, privateReplyToComment, hideComment } from "@/lib/meta-inbox";
 
 // ── Bot auto-reply AI (Gemini) untuk Inbox (WhatsApp / Messenger / IG) ──
 // Prinsip:
@@ -162,12 +162,13 @@ ${isComment ? `
 INI KOMEN AWAM pada post/iklan Facebook/Instagram (bukan chat). "reply" akan dihantar sebagai MESEJ PERIBADI (DM) kepada orang yang komen — tulis jawapan penuh di situ.
 Jawab HANYA komen yang penting & positif. skip=true (JANGAN balas langsung) jika komen: merapu/tak jelas, kata kesat/carut/sindir, kutuk atau kecam produk/jenama, tuduh penipu/scam TANPA sebut pesanan sendiri, gaduh dengan orang lain, tag kawan sahaja, emoji/sticker/"👍", ucapan tanpa soalan, spam/promosi orang lain, atau tak berkaitan produk.
 skip=false dan jawab jika ada minat/soalan (cth "berapa", "nak", "pm", "cod?", "sesuai untuk…", "cara guna").
+hide=true (SEMBUNYIKAN dari orang ramai) jika komen: kata kesat/carut, kutuk/kecam produk atau jenama, tuduh scam/penipu, spam/link/promosi orang lain, atau komplen masalah pesanan. hide=false untuk emoji, tag kawan, soalan & komen positif/neutral.
 Jika pelanggan sebenar sebut masalah PESANAN SENDIRI (order tak sampai, barang rosak/salah, nak refund) → skip=false, handoff=true, reply = ayat sopan & ringkas bahawa staff akan semak dan bantu melalui mesej (jangan berdebat, jangan nafi).
 ` : ""}
-Balas dalam JSON: {"reply": string, "handoff": boolean, "reason": string${isComment ? ', "skip": boolean' : ""}}`;
+Balas dalam JSON: {"reply": string, "handoff": boolean, "reason": string, "skip": boolean, "hide": boolean}${isComment ? "" : " — ini chat peribadi: skip=false, hide=false SENTIASA."}`;
 }
 
-type GeminiOut = { reply: string; handoff: boolean; reason?: string; skip?: boolean };
+type GeminiOut = { reply: string; handoff: boolean; reason?: string; skip?: boolean; hide?: boolean };
 
 async function callGemini(cfg: BotConfig, system: string, history: { role: "user" | "model"; text: string }[]): Promise<GeminiOut> {
   const res = await fetch(
@@ -189,8 +190,9 @@ async function callGemini(cfg: BotConfig, system: string, history: { role: "user
               handoff: { type: "BOOLEAN" },
               reason: { type: "STRING" },
               skip: { type: "BOOLEAN" },
+              hide: { type: "BOOLEAN" },
             },
-            required: ["reply", "handoff"],
+            required: ["reply", "handoff", "skip", "hide"],
           },
         },
       }),
@@ -203,7 +205,7 @@ async function callGemini(cfg: BotConfig, system: string, history: { role: "user
   if (!res.ok || j.error) throw new Error(j.error?.message || `Gemini HTTP ${res.status}`);
   const txt = j.candidates?.[0]?.content?.parts?.map((p) => p.text || "").join("") || "";
   const out = JSON.parse(txt) as GeminiOut;
-  if (out.skip) return { reply: out.reply ?? "", handoff: false, reason: out.reason, skip: true };
+  if (out.skip) return { reply: out.reply ?? "", handoff: false, reason: out.reason, skip: true, hide: !!out.hide };
   if (typeof out.reply !== "string" || !out.reply.trim()) throw new Error("Gemini balas kosong");
   return out;
 }
@@ -290,7 +292,7 @@ export async function runBotForContact(contactId: string, triggerMsgId: string):
       // (Gemini tolak request yang berakhir dengan giliran model).
       const history: { role: "user" | "model"; text: string }[] = [];
       for (const m of hist.reverse()) {
-        if (!m.body) continue;
+        if (!m.body || m.type === "hidden") continue;
         const role = m.direction === "in" ? "user" : "model";
         const last = history[history.length - 1];
         if (last && last.role === role) last.text += "\n" + m.body;
@@ -304,7 +306,9 @@ export async function runBotForContact(contactId: string, triggerMsgId: string):
         systemPrompt(catalog, cfg.faq || "", orders, contact.name, isCommentChannel(contact.channel)),
         history,
       );
-      if (out.skip) {
+      const isComment = isCommentChannel(contact.channel) && latestIn.type === "comment";
+      if (out.hide && isComment) await hideNegativeComment(contact, latestIn.id, out.reason || "");
+      if (out.skip && isComment) {
         // Komen tag kawan / emoji / spam — tak perlu balas; tanda Selesai supaya inbox kemas
         await db.waContact.update({ where: { id: contactId }, data: { archived: true, unread: 0 } });
         return;
@@ -399,4 +403,28 @@ async function replyOnComment(
   const pub = dm.ok ? `Hi${first ? " " + first : ""}! Kami dah PM ya, semak inbox 😊` : answer;
   const r = await replyToComment(ch, contact.pageId, commentId, pub);
   await save(pub, r, "text");
+}
+
+// Sembunyi komen negatif (bukan padam) + rekod dalam inbox supaya staff nampak.
+async function hideNegativeComment(
+  contact: { id: string; channel: string; pageId: string | null },
+  inboundMsgId: string,
+  reason: string,
+) {
+  const inbound = await db.waMessage.findUnique({ where: { id: inboundMsgId }, select: { waMsgId: true } });
+  if (!inbound?.waMsgId) return;
+  const r = await hideComment(contact.channel as "fb_comment" | "ig_comment", contact.pageId, inbound.waMsgId);
+  await db.waMessage.create({
+    data: {
+      contactId: contact.id,
+      direction: "out",
+      type: "hidden",
+      body: `🙈 Komen disembunyikan${reason ? ` (${reason.slice(0, 80)})` : ""}`,
+      bot: true,
+      status: r.ok ? "sent" : "failed",
+      error: r.ok ? null : r.error ?? "Gagal sembunyi",
+      timestamp: new Date(),
+    },
+  });
+  if (r.ok) await db.waContact.update({ where: { id: contact.id }, data: { tag: "hidden" } });
 }

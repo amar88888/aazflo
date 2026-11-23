@@ -78,6 +78,32 @@ export async function replyToComment(
   }
 }
 
+// Sembunyi komen (BUKAN padam): orang ramai tak nampak; penulis & kawan dia masih nampak.
+// FB → POST /{comment-id} is_hidden=true · IG → POST /{comment-id} hide=true
+export async function hideComment(
+  channel: "fb_comment" | "ig_comment",
+  pageOrIgId: string | null,
+  commentId: string,
+): Promise<{ ok: boolean; error?: string }> {
+  const creds = await getMetaInbox();
+  const page = pageFor(creds, pageOrIgId);
+  if (!page) return { ok: false, error: "Page/IG belum disambung di Settings." };
+  try {
+    const res = await fetch(`${GRAPH}/${commentId}`, {
+      method: "POST",
+      body: new URLSearchParams({
+        [channel === "ig_comment" ? "hide" : "is_hidden"]: "true",
+        access_token: page.accessToken,
+      }),
+    });
+    const j = (await res.json().catch(() => ({}))) as { success?: boolean; error?: { message?: string } };
+    if (!res.ok || j.error) return { ok: false, error: j.error?.message || `HTTP ${res.status}` };
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Ralat rangkaian." };
+  }
+}
+
 // Private reply: DM kepada orang yang komen (sekali per komen, dalam 7 hari).
 export async function privateReplyToComment(
   pageOrIgId: string | null,
