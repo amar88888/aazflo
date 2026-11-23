@@ -160,8 +160,9 @@ ${orders.length ? orders.join("\n") : "(tiada pesanan dijumpai untuk nombor ini)
 
 ${isComment ? `
 INI KOMEN AWAM pada post/iklan Facebook/Instagram (bukan chat). "reply" akan dihantar sebagai MESEJ PERIBADI (DM) kepada orang yang komen — tulis jawapan penuh di situ.
-skip=true (JANGAN balas) jika komen cuma tag kawan, emoji/sticker, "👍", ucapan tanpa soalan, spam/promosi orang lain, atau tak berkaitan produk. Jika ada minat/soalan (cth "berapa", "nak", "pm", "cod?", "sesuai untuk…") → skip=false dan jawab.
-Komen negatif/komplen/tuduhan penipuan → skip=false, handoff=true, reply = ayat sopan bahawa staff akan bantu melalui mesej.
+Jawab HANYA komen yang penting & positif. skip=true (JANGAN balas langsung) jika komen: merapu/tak jelas, kata kesat/carut/sindir, kutuk atau kecam produk/jenama, tuduh penipu/scam TANPA sebut pesanan sendiri, gaduh dengan orang lain, tag kawan sahaja, emoji/sticker/"👍", ucapan tanpa soalan, spam/promosi orang lain, atau tak berkaitan produk.
+skip=false dan jawab jika ada minat/soalan (cth "berapa", "nak", "pm", "cod?", "sesuai untuk…", "cara guna").
+Jika pelanggan sebenar sebut masalah PESANAN SENDIRI (order tak sampai, barang rosak/salah, nak refund) → skip=false, handoff=true, reply = ayat sopan & ringkas bahawa staff akan semak dan bantu melalui mesej (jangan berdebat, jangan nafi).
 ` : ""}
 Balas dalam JSON: {"reply": string, "handoff": boolean, "reason": string${isComment ? ', "skip": boolean' : ""}}`;
 }
@@ -332,7 +333,7 @@ export async function runBotForContact(contactId: string, triggerMsgId: string):
   if (fresh?.botPaused) return;
 
   if (isCommentChannel(contact.channel)) {
-    await replyOnComment(contact, latestIn.id, reply);
+    await replyOnComment(contact, latestIn.id, reply, handoff);
     await db.waContact.update({
       where: { id: contactId },
       data: { lastMessageAt: new Date(), ...(handoff ? { needsHuman: true } : {}) },
@@ -369,6 +370,7 @@ async function replyOnComment(
   contact: { id: string; channel: string; pageId: string | null; name: string | null },
   inboundMsgId: string,
   answer: string,
+  handoff = false,
 ) {
   const inbound = await db.waMessage.findUnique({ where: { id: inboundMsgId }, select: { waMsgId: true } });
   const commentId = inbound?.waMsgId;
@@ -392,6 +394,8 @@ async function replyOnComment(
 
   const dm = await privateReplyToComment(contact.pageId, commentId, answer);
   await save(answer, dm, "dm");
+  // Masalah pesanan → DM sahaja; jangan balas awam (elak drama depan orang ramai).
+  if (handoff) return;
   const pub = dm.ok ? `Hi${first ? " " + first : ""}! Kami dah PM ya, semak inbox 😊` : answer;
   const r = await replyToComment(ch, contact.pageId, commentId, pub);
   await save(pub, r, "text");
