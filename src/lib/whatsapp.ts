@@ -99,9 +99,13 @@ export async function discoverWhatsApp(
   token: string,
   appToken?: string,
 ): Promise<{ ok: boolean; phones: WaPhone[]; tokenAppId?: string; scopes: string[]; error?: string }> {
-  const dbg = await gget<{
+  type Dbg = {
     data?: { app_id?: string; scopes?: string[]; granular_scopes?: { scope: string; target_ids?: string[] }[]; is_valid?: boolean };
-  }>("debug_token", appToken || token, { input_token: token });
+  };
+  // Token boleh dari app lain (cth KASIFLY) — semak guna token itu sendiri dulu,
+  // fallback ke app token Aazflo.
+  let dbg = await gget<Dbg>("debug_token", token, { input_token: token });
+  if ((dbg.error || !dbg.data) && appToken) dbg = await gget<Dbg>("debug_token", appToken, { input_token: token });
   if (dbg.error) return { ok: false, phones: [], scopes: [], error: dbg.error.message };
   const d = dbg.data ?? {};
   const scopes = d.scopes ?? [];

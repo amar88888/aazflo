@@ -61,7 +61,7 @@ export async function saveWhatsAppAction(formData: FormData) {
     accessToken: accessToken || existing?.accessToken || "",
     phoneNumberId: phoneNumberId || existing?.phoneNumberId || "",
     wabaId: wabaId || existing?.wabaId || undefined,
-    appSecret: appSecret || existing?.appSecret || meta?.appSecret || undefined,
+    appSecret: appSecret || existing?.appSecret || undefined,
     // Jana verify token sekali — kekal selepas tu
     verifyToken: existing?.verifyToken || "aaz_" + randomBytes(12).toString("hex"),
     displayNumber: existing?.displayNumber,
@@ -89,19 +89,20 @@ export async function saveWhatsAppAction(formData: FormData) {
   // 2) Simpan DULU (Meta akan GET webhook untuk sahkan verify token)
   await saveCredentials("whatsapp", creds);
 
-  // 3) Langgan app ke WABA (supaya mesej masuk dihantar ke webhook)
-  if (creds.wabaId) {
-    const s = await wa.subscribeAppToWaba(creds.wabaId, creds.accessToken);
-    notes.push(s.ok ? "✓ App dilanggan ke akaun WhatsApp" : `✗ Langgan WABA: ${s.error}`);
-  }
-
-  // 4) Daftar callback webhook (kalau token dari app Aazflo yang sama)
-  const base = (process.env.NEXTAUTH_URL || "https://aazflo.com").replace(/\/$/, "");
-  if (appId && meta?.appSecret && (!found.tokenAppId || found.tokenAppId === appId)) {
-    const r = await wa.registerAppWebhook(appId, meta.appSecret, `${base}/api/whatsapp/webhook`, creds.verifyToken!);
-    notes.push(r.ok ? "✓ Webhook didaftar automatik" : `✗ Webhook: ${r.error} — set manual guna URL & token di bawah`);
+  // 3+4) HANYA kalau token milik app Aazflo sendiri: langgan WABA + daftar webhook.
+  // Token app lain (cth KASIFLY — webhook dia milik plugin nottinite.com) JANGAN
+  // disentuh: tukar callback app tu = blast/plugin rosak. Guna relay snippet.
+  const ownApp = !!appId && found.tokenAppId === appId;
+  if (ownApp && meta?.appSecret) {
+    const base = (process.env.NEXTAUTH_URL || "https://aazflo.com").replace(/\/$/, "");
+    if (creds.wabaId) {
+      const s = await wa.subscribeAppToWaba(creds.wabaId, creds.accessToken);
+      notes.push(s.ok ? "✓ App dilanggan ke akaun WhatsApp" : `✗ Langgan WABA: ${s.error}`);
+    }
+    const r = await wa.registerAppWebhook(appId!, meta.appSecret, `${base}/api/whatsapp/webhook`, creds.verifyToken!);
+    notes.push(r.ok ? "✓ Webhook didaftar automatik" : `✗ Webhook: ${r.error}`);
   } else {
-    notes.push("Webhook: set manual di Meta App (URL & Verify Token di bawah)");
+    notes.push("Mod relay: pasang snippet relay di website plugin (Relay URL di bawah) — webhook Meta tak diubah");
   }
 
   revalidatePath("/settings");

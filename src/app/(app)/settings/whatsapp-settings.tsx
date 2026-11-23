@@ -82,8 +82,22 @@ export function WhatsAppSettings({
       {displayNumber && <p className="text-xs text-slate-500">Nombor: <b>{displayNumber}</b></p>}
 
       {/* Butiran webhook untuk masuk dalam Meta App */}
+      <div className="rounded-lg bg-emerald-50 p-3 text-xs">
+        <p className="mb-2 font-medium text-emerald-800">
+          Mod relay (disyorkan bila nombor dah guna plugin blast — webhook Meta TAK diubah):
+        </p>
+        <Field
+          label="Relay URL (masuk dalam snippet relay di website plugin)"
+          value={verifyToken ? `${webhookUrl}?k=${verifyToken}` : "(Simpan dulu untuk jana)"}
+          copied={copied === "relay"}
+          onCopy={() => verifyToken && copy(`${webhookUrl}?k=${verifyToken}`, "relay")}
+          mono
+        />
+        <p className="pt-1 text-emerald-700">Rahsia — sesiapa ada URL ni boleh hantar mesej ke inbox. Jangan kongsi.</p>
+      </div>
+
       <div className="rounded-lg bg-slate-50 p-3 text-xs">
-        <p className="mb-2 font-medium text-slate-700">Masukkan dalam Meta App → WhatsApp → Configuration → Webhook:</p>
+        <p className="mb-2 font-medium text-slate-700">Mod terus (hanya kalau token dari app Aazflo) — Meta App → WhatsApp → Webhook:</p>
         <div className="space-y-2">
           <Field label="Callback URL" value={webhookUrl} copied={copied === "url"} onCopy={() => copy(webhookUrl, "url")} />
           <Field

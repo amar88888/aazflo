@@ -71,10 +71,16 @@ export async function POST(req: Request) {
   const raw = await req.text();
   const cfg = await getWhatsAppConfig();
 
-  // Sahkan signature (kalau App Secret diset)
-  const sig = req.headers.get("x-hub-signature-256");
-  if (!verifyWhatsAppSignature(raw, sig, cfg?.appSecret)) {
-    return NextResponse.json({ ok: false, message: "bad signature" }, { status: 401 });
+  // Dua sumber sah:
+  //  1) Relay dari plugin nottinite.com (?k=<verifyToken>) — plugin yang terima
+  //     webhook Meta (app KASIFLY), kita cuma salin. Jangan ubah webhook app tu.
+  //  2) Terus dari Meta — sahkan X-Hub-Signature-256 (kalau App Secret diset)
+  const k = new URL(req.url).searchParams.get("k");
+  const relayOk = !!k && !!cfg?.verifyToken && k === cfg.verifyToken;
+  const sigOk =
+    !!cfg?.appSecret && verifyWhatsAppSignature(raw, req.headers.get("x-hub-signature-256"), cfg.appSecret);
+  if (!relayOk && !sigOk) {
+    return NextResponse.json({ ok: false, message: "unauthorized" }, { status: 401 });
   }
 
   let payload: {
