@@ -38,6 +38,9 @@ export const DATA_START = new Date("2026-10-05T00:00:00+08:00");
 export const GIFT_COSTS: { store: string; sku: string; from: Date; cost: number }[] = [
   { store: "facelim", sku: "FL03", from: new Date("2026-11-05T00:00:00+08:00"), cost: 1.25 },
   { store: "facelim", sku: "FL02", from: new Date("2026-11-24T13:45:00+08:00"), cost: 1.25 },
+  // SG: Gua Sha percuma Pakej 2 & 3 dilancar di landing facelimsg 24 Nov ~23:30 MYT (stok & pos dari MY).
+  { store: "facelimsg", sku: "FL02", from: new Date("2026-11-24T23:30:00+08:00"), cost: 1.25 },
+  { store: "facelimsg", sku: "FL03", from: new Date("2026-11-24T23:30:00+08:00"), cost: 1.25 },
 ];
 export function giftCostOf(o: { store: string; orderedAt: Date }, sku: string | null | undefined): number {
   if (!sku) return 0;
