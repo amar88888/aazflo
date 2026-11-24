@@ -1,5 +1,5 @@
 import { db } from "@/lib/db";
-import { PLATFORMS, DATA_START, SGD_TO_MYR, type Platform } from "@/lib/constants";
+import { PLATFORMS, DATA_START, SGD_TO_MYR, giftCostOf, type Platform } from "@/lib/constants";
 
 // Order kedai SG dalam SGD — tukar total & harga item ke RM (in-memory) sebelum kira.
 // shippingFee SG dah dalam RM (RM17/RM25), jadi tak ditukar.
@@ -251,8 +251,15 @@ export async function getDashboardData(r: DashRange): Promise<DashboardData> {
   toMyr(prevOrders);
   const feeOf = (o: { platform: string; platformFee: number; total: number }) =>
     o.platformFee > 0 ? o.platformFee : o.total * ((feeRates[o.platform as Platform] ?? 0) / 100);
-  const cogsOf = (o: { items: { quantity: number; product: { cogsPerUnit: number } | null }[] }) =>
-    o.items.reduce((s, it) => s + (it.product?.cogsPerUnit ?? 0) * it.quantity, 0);
+  const cogsOf = (o: {
+    store: string;
+    orderedAt: Date;
+    items: { quantity: number; sku: string | null; product: { cogsPerUnit: number; sku: string } | null }[];
+  }) =>
+    o.items.reduce(
+      (s, it) => s + ((it.product?.cogsPerUnit ?? 0) + giftCostOf(o, it.product?.sku ?? it.sku)) * it.quantity,
+      0
+    );
   const profitOf = (o: (typeof orders)[number]) => o.total - feeOf(o) - cogsOf(o) - (o.shippingFee || 0);
 
   const sumRev = (a: typeof orders) => a.reduce((s, o) => s + o.total, 0);
@@ -383,7 +390,7 @@ export async function getDashboardData(r: DashRange): Promise<DashboardData> {
       const cur = sellerMap.get(key) ?? { name: it.name, sku: it.sku ?? "-", quantity: 0, revenue: 0, profit: 0 };
       cur.quantity += it.quantity;
       cur.revenue += it.quantity * it.unitPrice;
-      cur.profit += it.quantity * (it.unitPrice - (it.product?.cogsPerUnit ?? 0));
+      cur.profit += it.quantity * (it.unitPrice - (it.product?.cogsPerUnit ?? 0) - giftCostOf(o, it.product?.sku ?? it.sku));
       sellerMap.set(key, cur);
     }
   }
@@ -496,7 +503,7 @@ export async function getPnlData(from: Date, to: Date): Promise<PnlData> {
   for (const o of orders) {
     for (const it of o.items) {
       if (it.product) {
-        cogs += it.product.cogsPerUnit * it.quantity;
+        cogs += (it.product.cogsPerUnit + giftCostOf(o, it.product.sku)) * it.quantity;
       } else {
         cogsUnmatchedItems++;
       }

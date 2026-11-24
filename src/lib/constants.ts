@@ -32,6 +32,20 @@ export type ExpenseType = (typeof EXPENSE_TYPES)[number];
 // kita cuma pantau era ads, bukan order lama. Tukar di sini kalau nak reset titik mula.
 export const DATA_START = new Date("2026-10-05T00:00:00+08:00");
 
+// 🎁 Kos hadiah percuma (Gua Sha) — ditambah ke COGS ikut kedai + SKU + tarikh mula.
+// Ikut tarikh supaya laporan lama tak berubah. Gua Sha: Bevavar Shopee RM1.25/unit (24 Nov 2026).
+// Tambah baris baru bila hadiah dilancar di kedai lain (cth facelimsg).
+export const GIFT_COSTS: { store: string; sku: string; from: Date; cost: number }[] = [
+  { store: "facelim", sku: "FL03", from: new Date("2026-11-05T00:00:00+08:00"), cost: 1.25 },
+  { store: "facelim", sku: "FL02", from: new Date("2026-11-24T13:45:00+08:00"), cost: 1.25 },
+];
+export function giftCostOf(o: { store: string; orderedAt: Date }, sku: string | null | undefined): number {
+  if (!sku) return 0;
+  let c = 0;
+  for (const g of GIFT_COSTS) if (g.store === o.store && g.sku === sku && o.orderedAt >= g.from) c += g.cost;
+  return c;
+}
+
 // 🎯 Target untung BERSIH sehari (RM). Floor = minimum, Goal = sasaran tinggi.
 export const PROFIT_TARGET = { floor: 1100, goal: 2000 };
 
