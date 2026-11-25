@@ -44,6 +44,9 @@ const JOBS: Job[] = [
   // 24 Nov: dulu 04:30 → sync-woo 04:35 tarik ~1,200 order dari site cache sejuk → timeout 170s.
   // Kini LEPAS sync (04:35) & repair (04:45).
   { name: "purge-cache", due: (h, m) => h === 4 && m === 55, paths: ["purge-cache"] },
+  // Semakan pra-iklan 05:20 (Amar minta 25 Nov): landing (cache baru, borang, pixel, harga, gambar, ayat larangan)
+  // + pixel Meta 12 jam. Telegram ringkasan setiap pagi.
+  { name: "preflight", due: (h, m) => h === 5 && m === 20, paths: ["preflight"] },
   // Repair harian 04:45 (waktu sunyi): kemas SQLite (WAL checkpoint, integrity, optimize)
   // + buang baris order berganda supaya dashboard stabil & tepat.
   { name: "repair-harian", due: (h, m) => h === 4 && m === 45, paths: ["maintenance", "dedupe-orders?apply=1"] },
