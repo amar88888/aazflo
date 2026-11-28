@@ -40,7 +40,7 @@ export const TRADEMARK = {
 
 // Pautan carian portal aduan (alamat rasmi portal kadang bertukar — guna carian supaya tak patah).
 export const PORTALS: Record<string, { name: string; url: string }> = {
-  Shopee: { name: "Shopee Brand IP Portal", url: "https://www.google.com/search?q=Shopee+Brand+IP+Portal+report+infringement" },
+  Shopee: { name: "Shopee Brand IP Portal", url: "https://brandipp.shopee.com/" },
   Lazada: { name: "Lazada IPP (Alibaba IP Protection)", url: "https://ipp.alibabagroup.com/" },
   TikTok: { name: "TikTok Shop IP Protection Center", url: "https://www.google.com/search?q=TikTok+Shop+Intellectual+Property+Protection+Center+IPPC" },
   Facebook: { name: "Meta IP Report (trademark)", url: "https://www.facebook.com/help/contact/1057530731007541" },

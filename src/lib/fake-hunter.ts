@@ -8,7 +8,7 @@ import seed from "./fake-hunter-seed.json";
 export const FAKE_KEY = "fake_hunter_v1";
 
 export * from "./fake-hunter-shared";
-import { newId, guessPlatform, type FakeListing } from "./fake-hunter-shared";
+import { newId, guessPlatform, FAKE_STATUSES, type FakeListing } from "./fake-hunter-shared";
 
 export async function getFakes(): Promise<FakeListing[]> {
   const row = await db.setting.findUnique({ where: { key: FAKE_KEY } });
@@ -42,6 +42,9 @@ export async function upsertFakes(items: Partial<FakeListing>[]): Promise<{ adde
         sold: it.sold ?? ex.sold,
         location: it.location ?? ex.location,
         shop: it.shop ?? ex.shop,
+        // Imbasan harian boleh kemas kini status (dah_adu / dibuang) & nota.
+        status: it.status && FAKE_STATUSES.includes(it.status) ? it.status : ex.status,
+        note: it.note ?? ex.note,
         updatedAt: now,
       });
       updated++;
@@ -58,7 +61,7 @@ export async function upsertFakes(items: Partial<FakeListing>[]): Promise<{ adde
         url: it.url,
         risk: it.risk ?? "SEMAK",
         reason: it.reason ?? "",
-        status: "disyaki",
+        status: it.status && FAKE_STATUSES.includes(it.status) ? it.status : "disyaki",
         note: it.note ?? "",
         foundAt: now,
         updatedAt: now,
