@@ -16,6 +16,7 @@ import {
   Settings,
   Banknote,
   MessageCircle,
+  ShieldAlert,
   LogOut,
   X,
 } from "lucide-react";
@@ -36,6 +37,7 @@ const NAV = [
   { href: "/live", label: "Live Sessions", icon: Radio, staff: false },
   { href: "/content", label: "Content AI", icon: Sparkles, staff: false },
   { href: "/products", label: "Produk & COGS", icon: Tag, staff: false },
+  { href: "/fakes", label: "Fake Hunter", icon: ShieldAlert, staff: false },
   { href: "/settings", label: "Settings", icon: Settings, staff: false },
 ];
 
