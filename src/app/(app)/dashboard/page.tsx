@@ -464,6 +464,15 @@ export default async function DashboardPage({
                     <p className="text-xs text-slate-400">
                       #{o.platformOrderId} · {formatDateTime(o.orderedAt)}
                     </p>
+                    {o.flags.length > 0 && (
+                      <div className="mt-1 flex flex-wrap gap-1">
+                        {o.flags.map((f, i) => (
+                          <span key={i} title={f.title}>
+                            <Badge color={f.color}>{f.text}</Badge>
+                          </span>
+                        ))}
+                      </div>
+                    )}
                   </td>
                   <td className="whitespace-nowrap px-5 py-2.5 text-right">
                     <p className="font-semibold tabular-nums text-slate-800">

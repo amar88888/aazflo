@@ -18,6 +18,8 @@ model Order {
   platformOrderId String
   status          String // pending | printed | shipped | completed | cancelled
   buyerName       String?
+  buyerPhone      String? // telefon billing Woo (untuk tanda Double? / pelanggan sama)
+  awbError        String? // _ninja_van_console_log bila push NinjaVan GAGAL (cth token mati)
   total           Float
   platformFee     Float       @default(0)
   shippingFee     Float       @default(0)

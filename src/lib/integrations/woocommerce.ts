@@ -31,7 +31,7 @@ export type WooOrder = {
   payment_method?: string;
   payment_method_title?: string;
   date_paid_gmt?: string | null;
-  billing: { first_name: string; last_name: string };
+  billing: { first_name: string; last_name: string; phone?: string };
   line_items: {
     name: string;
     sku: string;

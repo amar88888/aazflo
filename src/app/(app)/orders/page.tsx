@@ -11,6 +11,7 @@ import {
 import { PageHeader, EmptyState } from "@/components/ui";
 import { PlatformIcon } from "@/components/platform-icon";
 import { getWooStores } from "@/lib/integrations/woocommerce";
+import { orderFlags } from "@/lib/order-flags";
 import { AwbOrdersTable, type AwbOrder } from "./awb-table";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
@@ -49,6 +50,14 @@ export default async function OrdersPage({
   const pendingByPlatform: Record<string, number> = {};
   for (const pc of pendingCounts) pendingByPlatform[pc.platform] = pc._count;
 
+  // Tanda Double? / pelanggan sama / AWB gagal (banding dgn order sekitar — merentas kedai).
+  const oldest = orders.length ? orders[orders.length - 1].orderedAt.getTime() : Date.now();
+  const flagPool = await db.order.findMany({
+    where: { orderedAt: { gte: new Date(oldest - 86400_000) } },
+    select: { id: true, store: true, platformOrderId: true, buyerPhone: true, status: true, orderedAt: true, awbError: true, trackingNo: true },
+  });
+  const flagMap = orderFlags(orders, flagPool);
+
   const awbOrders: AwbOrder[] = orders.map((o) => {
     let events: { stage: string; at: string }[] = [];
     if (o.trackingEvents) {
@@ -75,6 +84,7 @@ export default async function OrdersPage({
       orderedAt: o.orderedAt.toISOString(),
       deliveredAt: o.deliveredAt?.toISOString() ?? null,
       trackingEvents: events,
+      flags: flagMap.get(o.id) ?? [],
     };
   });
 

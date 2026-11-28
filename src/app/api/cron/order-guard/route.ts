@@ -16,7 +16,7 @@ export async function GET(req: Request) {
   const g = globalThis as { __orderGuard?: GuardState };
   const st = (g.__orderGuard ??= { sent: new Set(), lastAt: 0 });
   const fresh = issues.filter((i) => !st.sent.has(i.key));
-  const urgent = issues.some((i) => i.kind !== "berganda");
+  const urgent = issues.some((i) => i.kind !== "berganda" && i.kind !== "pelanggan-sama");
   const due = urgent && Date.now() - st.lastAt > 6 * 3600_000;
 
   let sent = false;

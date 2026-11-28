@@ -19,7 +19,11 @@ type GuardOrder = {
   meta_data?: { key: string; value: unknown }[];
 };
 
-export type GuardIssue = { kind: "sangkut" | "berganda" | "salah-kedai" | "telefon"; key: string; text: string };
+export type GuardIssue = {
+  kind: "awb-gagal" | "sangkut" | "berganda" | "salah-kedai" | "telefon" | "pelanggan-sama";
+  key: string;
+  text: string;
+};
 
 // Status order yang akan / dah dihantar ke courier (bukan checkout terbengkalai).
 const SHIPPING = new Set(["processing", "on-hold", "printed", "nv-pending-pickup"]);
@@ -83,6 +87,20 @@ export async function runOrderGuard(): Promise<{ issues: GuardIssue[]; errors: s
   for (const { store, o } of all) {
     const label = STORE_LABELS[store] ?? store;
     const ageH = (now - new Date(o.date_created_gmt + "Z").getTime()) / 3600_000;
+
+    // 0. AWB GAGAL: plugin NinjaVan dah cuba push tapi gagal (cth "Problem With Access Token!") —
+    //    order ni takkan dapat AWB sendiri, jadi tak tunggu 2 jam. Jerit selepas 10 minit.
+    const nvLog = String(o.meta_data?.find((m) => m.key === "_ninja_van_console_log")?.value ?? "").trim();
+    const pushFailed = !!nvLog && !/success/i.test(nvLog);
+    if ((o.status === "processing" || o.status === "on-hold") && ageH > 1 / 6 && pushFailed && !getNinjaTracking(o as never)) {
+      const tokenDead = /token/i.test(nvLog);
+      issues.push({
+        kind: "awb-gagal",
+        key: `a:${store}:${o.id}`,
+        text: `${label} #${o.id} ${name(o)} (${o.total}) — NinjaVan: "${nvLog.slice(0, 60)}"${tokenDead ? ` → wp-admin ${label} → Ninja Van → Re-connect, lepas tu Push` : ""}`,
+      });
+      continue; // jangan ulang sebagai "tersangkut"
+    }
 
     // 1. Tersangkut: processing/on-hold tanpa AWB lebih 2 jam
     if ((o.status === "processing" || o.status === "on-hold") && ageH > 2 && !getNinjaTracking(o as never)) {
@@ -152,6 +170,32 @@ export async function runOrderGuard(): Promise<{ issues: GuardIssue[]; errors: s
     }
   }
 
+  // 5. Pelanggan sama, JENAMA LAIN (cth Facelim SG + Maxlim SG) dalam 24 jam — BUKAN double.
+  //    Lapor supaya Amar/staff tak tertanya "double ke?" (28 Nov: TITI #68750 + #68280).
+  const byPhone = new Map<string, { store: string; o: GuardOrder }[]>();
+  for (const x of live) {
+    const ph = normPhone(x.o.billing.phone);
+    if (ph.length < 7) continue;
+    byPhone.set(ph, [...(byPhone.get(ph) ?? []), x]);
+  }
+  const brand = (k: string) => (/^facelim/i.test(k) ? "F" : /^maxlim/i.test(k) ? "M" : k);
+  for (const list of byPhone.values()) {
+    for (let i = 0; i < list.length; i++)
+      for (let j = i + 1; j < list.length; j++) {
+        const a = list[i];
+        const b = list[j];
+        if (brand(a.store) === brand(b.store)) continue;
+        const gapH =
+          Math.abs(new Date(a.o.date_created_gmt + "Z").getTime() - new Date(b.o.date_created_gmt + "Z").getTime()) / 3600_000;
+        if (gapH > 24) continue;
+        issues.push({
+          kind: "pelanggan-sama",
+          key: `p:${a.store}:${a.o.id}:${b.store}:${b.o.id}`,
+          text: `${name(a.o)} — ${STORE_LABELS[a.store] ?? a.store} #${a.o.id} (${a.o.total}) + ${STORE_LABELS[b.store] ?? b.store} #${b.o.id} (${b.o.total})`,
+        });
+      }
+  }
+
   return { issues, errors, scanned: all.length };
 }
 
@@ -165,9 +209,11 @@ export function formatGuard(issues: GuardIssue[], errors: string[]): string {
     if (xs.length > 15) L.push(`• …dan ${xs.length - 15} lagi`);
     L.push(`<i>${hint}</i>`);
   };
+  sec("awb-gagal", "❌ AWB GAGAL — NinjaVan tolak push", "Order ni takkan dapat AWB sendiri. Re-connect Ninja Van di wp-admin kedai tu, kemudian Orders → Push to Ninja Van");
   sec("telefon", "📵 Telefon TAK SAH — COD tak boleh hantar", "Dapatkan telefon betul dari pelanggan; kalau tak dapat, batal AWB sebelum pickup (elak RTO)");
   sec("sangkut", "⏳ Order tersangkut — belum push NinjaVan", "Push di WooCommerce → Orders → Push to Ninja Van");
   sec("berganda", "👯 Kemungkinan order berganda", "Sahkan dgn pelanggan (WhatsApp) dulu; kalau silap, batal yang lebih + batal AWB NinjaVan sebelum pickup");
+  sec("pelanggan-sama", "🔗 Pelanggan sama beli 2 produk (BUKAN double)", "Facelim + Maxlim — dua-dua sah, hantar macam biasa");
   sec("salah-kedai", "🌏 Pelanggan Malaysia di kedai SG", "NinjaVan SG tak boleh hantar — cipta semula di kedai MY, batal yang SG");
   if (errors.length) L.push("", `⚠️ Gagal baca: ${errors.join("; ").replace(/</g, "&lt;")}`);
   return L.join("\n");

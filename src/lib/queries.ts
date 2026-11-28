@@ -1,4 +1,5 @@
 import { db } from "@/lib/db";
+import { orderFlags, type OrderFlag } from "@/lib/order-flags";
 import { PLATFORMS, DATA_START, SGD_TO_MYR, giftCostOf, type Platform } from "@/lib/constants";
 
 // Order kedai SG dalam SGD — tukar total & harga item ke RM (in-memory) sebelum kira.
@@ -191,6 +192,7 @@ export type DashboardData = {
     deliveryStatus: string;
     payment: "online" | "cod" | null;
     orderedAt: Date;
+    flags: OrderFlag[];
   }[];
 };
 
@@ -415,6 +417,12 @@ export async function getDashboardData(r: DashRange): Promise<DashboardData> {
   const recent = dedupeOrders(
     await db.order.findMany({ orderBy: { orderedAt: "desc" }, take: 20, include: { items: true } }),
   ).slice(0, 6);
+  // Tanda Double? / pelanggan sama / AWB gagal — banding dgn order 2 hari sekitar.
+  const flagPool = await db.order.findMany({
+    where: { orderedAt: { gte: new Date(Date.now() - 3 * 86400_000) } },
+    select: { id: true, store: true, platformOrderId: true, buyerPhone: true, status: true, orderedAt: true, awbError: true, trackingNo: true },
+  });
+  const flagMap = orderFlags(recent, flagPool);
   const recentOrders = recent.map((o) => ({
     id: o.id,
     platformOrderId: o.platformOrderId,
@@ -427,6 +435,7 @@ export async function getDashboardData(r: DashRange): Promise<DashboardData> {
     deliveryStatus: o.deliveryStatus,
     payment: o.paymentMethod === "cod" ? ("cod" as const) : isOnlinePaid(o) ? ("online" as const) : null,
     orderedAt: o.orderedAt,
+    flags: flagMap.get(o.id) ?? [],
   }));
 
   return {

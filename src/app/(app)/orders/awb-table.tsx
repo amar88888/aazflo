@@ -40,6 +40,7 @@ export type AwbOrder = {
   orderedAt: string;
   deliveredAt: string | null;
   trackingEvents: TrackingEvent[];
+  flags?: { color: string; text: string; title: string }[];
 };
 
 const STATUS_COLORS: Record<string, string> = {
@@ -271,6 +272,15 @@ export function AwbOrdersTable({
                 <td className="px-4 py-3">
                   <p className="font-medium text-slate-800">{o.platformOrderId}</p>
                   {o.buyerName && <p className="text-xs text-slate-400">{o.buyerName}</p>}
+                  {o.flags && o.flags.length > 0 && (
+                    <div className="mt-1 flex flex-wrap gap-1">
+                      {o.flags.map((f, i) => (
+                        <span key={i} title={f.title}>
+                          <Badge color={f.color}>{f.text}</Badge>
+                        </span>
+                      ))}
+                    </div>
+                  )}
                   {o.trackingNo && (
                     <p className="mt-0.5 flex items-center gap-1 text-xs text-slate-500">
                       <Truck size={12} />

@@ -56,7 +56,8 @@ const JOBS: Job[] = [
   { name: "my-malam-bangun", due: (h, m) => (h === 6 && (m === 0 || m === 20)) || (h === 7 && m === 0), paths: ["my-malam?action=wake"] },
   // Laporan untung bersih sebenar vs target ke Telegram — user tak payah monitor sendiri
   { name: "untung-ping", due: (h, m) => (h === 12 || h === 16 || h === 21) && m === 30, paths: ["untung-ping"] },
-  { name: "pengawal-order", due: (h, m) => h >= 8 && h <= 23 && m === 20, paths: ["order-guard?send=1"] },
+  // 28 Nov: tiap 30 min (:20 & :50) — AWB gagal (token NinjaVan mati) mesti dikesan cepat.
+  { name: "pengawal-order", due: (h, m) => h >= 8 && h <= 23 && (m === 20 || m === 50), paths: ["order-guard?send=1"] },
   {
     name: "laporan-pagi",
     due: (h, m) => h === 8 && m === 0,

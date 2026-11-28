@@ -67,6 +67,7 @@ export function brandMismatch(items: { name?: string | null }[], storeKey: strin
 export async function upsertWooOrder(wo: WooOrder, storeKey = "maxlim"): Promise<"imported" | "updated"> {
   const platformOrderId = String(wo.id);
   const buyerName = `${wo.billing.first_name} ${wo.billing.last_name}`.trim() || null;
+  const buyerPhone = (wo.billing.phone || "").trim() || null;
   const currency = ((wo as { currency?: string }).currency || "").toUpperCase();
   const ship = fulfilCost(storeKey, wo.payment_method ?? "", currency);
   // Bayaran: Woo isi date_paid bila online payment berjaya (COD kosong sampai complete).
@@ -82,6 +83,9 @@ export async function upsertWooOrder(wo: WooOrder, storeKey = "maxlim"): Promise
   const mapped = mapWooStatus(wo.status);
   const tracking = getNinjaTracking(wo);
   const courier = tracking ? "Ninja Van" : null;
+  // Push NinjaVan gagal (plugin tulis sebab dlm _ninja_van_console_log, cth "Problem With Access Token!")
+  const nvLog = String(wo.meta_data?.find((m) => m.key === "_ninja_van_console_log")?.value ?? "").trim();
+  const awbError = !tracking && nvLog && !/success/i.test(nvLog) ? nvLog.slice(0, 200) : null;
 
   // Perjalanan parcel + delivery status dari NinjaVan
   const events: TrackingEvent[] = getNinjaEvents(wo);
@@ -119,6 +123,8 @@ export async function upsertWooOrder(wo: WooOrder, storeKey = "maxlim"): Promise
       where: { id: existing.id },
       data: {
         status,
+        buyerPhone: buyerPhone ?? existing.buyerPhone,
+        awbError,
         total: money(wo.total),
         shippingFee: ship,
         paymentMethod,
@@ -149,6 +155,8 @@ export async function upsertWooOrder(wo: WooOrder, storeKey = "maxlim"): Promise
       platformOrderId,
       status,
       buyerName,
+      buyerPhone,
+      awbError,
       total: money(wo.total),
       shippingFee: ship,
       paymentMethod,
